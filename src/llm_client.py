@@ -1,4 +1,4 @@
-"""LLM client with OpenAI, Gemini, and deterministic mock support."""
+"""LLM client with OpenAI, Gemini, local OpenAI-compatible, and mock support."""
 
 from __future__ import annotations
 
@@ -11,9 +11,12 @@ from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
+from src.prompt_builder import TRAINING_SYSTEM_PROMPT, prompt_style
 from src.schemas import InputRecord
 
 load_dotenv()
+
+_openai_clients: dict[tuple[str, str], Any] = {}
 
 CONSENT_FIELD_MAP = {
     "sms": "sms_opt_in",
@@ -263,6 +266,17 @@ class LLMClient:
         self.provider = os.getenv("LLM_PROVIDER", "openai").lower()
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+        self.local_model = os.getenv("LOCAL_MODEL", "realpage-message-agent")
+        self.local_base_url = os.getenv("LOCAL_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+        self.local_api_key = os.getenv("LOCAL_API_KEY", "local")
+
+    @property
+    def model_name(self) -> str:
+        if self.provider == "gemini":
+            return self.gemini_model
+        if self.provider == "local":
+            return self.local_model
+        return self.openai_model
 
     def generate(self, prompt: str, record: InputRecord | None = None) -> dict[str, Any]:
         if self.mock:
@@ -290,28 +304,107 @@ class LLMClient:
     def _call_provider(self, prompt: str) -> str:
         if self.provider == "gemini":
             return self._call_gemini(prompt)
+        if self.provider == "local":
+            return self._call_local(prompt)
         return self._call_openai(prompt)
+
+    def _get_openai_client(self, *, api_key: str, base_url: str | None) -> Any:
+        cache_key = (api_key, base_url or "")
+        if cache_key not in _openai_clients:
+            try:
+                from openai import OpenAI
+            except ImportError as exc:
+                raise LLMError("openai package is not installed.") from exc
+
+            client_kwargs: dict[str, Any] = {"api_key": api_key}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            _openai_clients[cache_key] = OpenAI(**client_kwargs)
+        return _openai_clients[cache_key]
+
+    def _resolve_max_tokens(self, *, for_local: bool) -> int | None:
+        if for_local:
+            raw = os.getenv("LOCAL_MAX_TOKENS")
+            if raw:
+                return int(raw)
+            return 512
+        raw = os.getenv("OPENAI_MAX_TOKENS")
+        return int(raw) if raw else None
+
+    def _system_message(self, *, for_local: bool) -> str:
+        if for_local and prompt_style() == "training":
+            return TRAINING_SYSTEM_PROMPT
+        return "Respond with JSON only."
+
+    def _openai_chat_request(
+        self,
+        *,
+        model: str,
+        prompt: str,
+        api_key: str,
+        base_url: str | None = None,
+        json_mode: bool = True,
+        system_message: str | None = None,
+        for_local: bool = False,
+    ) -> str:
+        client = self._get_openai_client(api_key=api_key, base_url=base_url)
+        if system_message is None:
+            system_message = self._system_message(for_local=for_local)
+
+        request_kwargs: dict[str, Any] = {
+            "model": model,
+            "temperature": 0,
+            "messages": [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": prompt},
+            ],
+        }
+        max_tokens = self._resolve_max_tokens(for_local=for_local)
+        if max_tokens:
+            request_kwargs["max_tokens"] = max_tokens
+        if json_mode:
+            request_kwargs["response_format"] = {"type": "json_object"}
+
+        try:
+            response = client.chat.completions.create(**request_kwargs)
+        except Exception as exc:
+            if not json_mode:
+                raise LLMError(f"LLM request failed: {exc}") from exc
+            request_kwargs.pop("response_format", None)
+            try:
+                response = client.chat.completions.create(**request_kwargs)
+            except Exception as retry_exc:
+                raise LLMError(f"LLM request failed: {retry_exc}") from retry_exc
+
+        return response.choices[0].message.content or "{}"
 
     def _call_openai(self, prompt: str) -> str:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise LLMError("OPENAI_API_KEY is not set.")
-        try:
-            from openai import OpenAI
-        except ImportError as exc:
-            raise LLMError("openai package is not installed.") from exc
-
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
+        base_url = os.getenv("OPENAI_BASE_URL")
+        return self._openai_chat_request(
             model=self.openai_model,
-            temperature=0,
-            messages=[
-                {"role": "system", "content": "Respond with JSON only."},
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
+            prompt=prompt,
+            api_key=api_key,
+            base_url=base_url,
+            json_mode=True,
         )
-        return response.choices[0].message.content or "{}"
+
+    def _call_local(self, prompt: str) -> str:
+        if not self.local_base_url:
+            raise LLMError(
+                "LOCAL_BASE_URL (or OPENAI_BASE_URL) is not set for local provider."
+            )
+        json_mode = os.getenv("LOCAL_JSON_MODE", "true").lower() in ("1", "true", "yes")
+        return self._openai_chat_request(
+            model=self.local_model,
+            prompt=prompt,
+            api_key=self.local_api_key,
+            base_url=self.local_base_url,
+            json_mode=json_mode,
+            for_local=True,
+        )
 
     def _call_gemini(self, prompt: str) -> str:
         api_key = os.getenv("GEMINI_API_KEY")

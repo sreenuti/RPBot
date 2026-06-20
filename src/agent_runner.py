@@ -131,7 +131,7 @@ def process_record(
                 data={
                     "provider": llm.provider,
                     "mock": llm.mock,
-                    "model": llm.gemini_model if llm.provider == "gemini" else llm.openai_model,
+                    "model": llm.model_name,
                     "attempt": attempt + 1,
                     "raw_response": llm_result,
                     "chain_of_thought": llm_result.get("reasoning"),
@@ -338,7 +338,7 @@ def run_batch(
             run_id=str(uuid.uuid4()),
             mock=llm.mock,
             provider=llm.provider,
-            model=llm.gemini_model if llm.provider == "gemini" else llm.openai_model,
+            model=llm.model_name,
             started_at=datetime.now(timezone.utc).isoformat(),
             total_latency_ms=total_ms,
             summary=_build_summary(outputs, records),

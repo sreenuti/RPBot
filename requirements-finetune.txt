@@ -1,0 +1,13 @@
+# GPU LoRA fine-tuning dependencies (.venv-finetune)
+# Install PyTorch separately for your CUDA/Python combo, e.g.:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+transformers>=4.46
+datasets>=3.0
+peft>=0.13
+trl>=0.12
+accelerate>=1.0
+bitsandbytes>=0.43
+psutil>=6.0
+huggingface_hub>=0.26
+sentencepiece
+protobuf

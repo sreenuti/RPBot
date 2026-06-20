@@ -85,13 +85,15 @@ Full diagrams and component details: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 │   ├── API.md              # Demo UI REST API
 │   ├── TESTING.md          # Test guide
 │   ├── CODE_REVIEW.md      # Code review findings
+│   ├── HOSTING.md          # Colab → HF → Vercel production path
 │   ├── INPUT_OUTPUT_SCHEMA.md
 │   └── PROBLEM_STATEMENT.md
 ├── src/
 │   ├── loader.py           # JSONL ingestion
 │   ├── schemas.py          # Pydantic models
 │   ├── prompt_builder.py   # LLM prompt construction
-│   ├── llm_client.py       # OpenAI / Gemini / mock
+│   ├── llm_client.py       # OpenAI / Gemini / local / mock
+│   ├── finetune_export.py  # Fine-tuning dataset export
 │   ├── output_parser.py    # Response parsing
 │   ├── validator.py        # Policy enforcement
 │   ├── evaluator.py        # Quality metrics
@@ -121,15 +123,33 @@ API reference: **[docs/API.md](docs/API.md)**
 
 The FastAPI app is configured for Vercel via `pyproject.toml` (`entrypoint = "ui.app:app"`) and root `app.py`.
 
+**Production path (fine-tuned model):** Train in Colab → upload to Hugging Face → deploy a **TGI Inference Endpoint** → point Vercel at it. Full guide: **[docs/HOSTING.md](docs/HOSTING.md)**
+
 1. Import/connect the [RPBot](https://github.com/sreenuti/RPBot) repo in Vercel
 2. Leave **Root Directory** empty (project root is the repo root)
-3. Add environment variables in Vercel → Settings → Environment Variables (for live LLM, not mock):
-   - `LLM_PROVIDER` — `openai` or `gemini`
-   - `OPENAI_API_KEY` / `GEMINI_API_KEY`
-   - `OPENAI_MODEL` / `GEMINI_MODEL` (optional)
+3. Add environment variables in Vercel → Settings → Environment Variables:
+
+**Option A — Hugging Face fine-tuned model (recommended for production demos):**
+
+```env
+LLM_PROVIDER=local
+LOCAL_BASE_URL=https://YOUR_ENDPOINT.us-east-1.aws.endpoints.huggingface.cloud/v1
+LOCAL_MODEL=realpage-message-agent-v1
+LOCAL_API_KEY=hf_...
+LOCAL_JSON_MODE=true
+LOCAL_MAX_TOKENS=512
+```
+
+**Option B — OpenAI / Gemini (cloud baseline, not your fine-tune):**
+
+```env
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+```
+
 4. Redeploy
 
-**Demo tip:** Keep **Mock mode** enabled in the UI on Vercel for reliable demos (no API key, faster, avoids serverless timeouts). Real LLM runs may hit Vercel’s function duration limits on large batches.
+**Demo tip:** Keep **Mock mode** enabled in the UI for the most reliable Vercel demos (no GPU cold start). Use the HF endpoint when you want the real fine-tuned model.
 
 ---
 
@@ -163,6 +183,80 @@ python run.py --input data/sample.jsonl --output outputs/outputs.jsonl
 ```bash
 python run.py --input /path/to/holdout.jsonl --output outputs/holdout_outputs.jsonl
 ```
+
+### Local / custom model (vLLM, TGI, Ollama OpenAI shim)
+
+Point the agent at your own fine-tuned model via an OpenAI-compatible endpoint:
+
+```env
+LLM_PROVIDER=local
+LOCAL_BASE_URL=http://localhost:8000/v1
+LOCAL_MODEL=realpage-message-agent-v1
+LOCAL_API_KEY=local
+LOCAL_MAX_TOKENS=512
+```
+
+Then run as usual (no `--mock`):
+
+```bash
+python run.py --input data/test_cases.jsonl --output outputs/outputs.jsonl
+```
+
+**Typical vLLM serve command:**
+
+```bash
+vllm serve ./realpage-message-agent-v1 --host 0.0.0.0 --port 8000
+```
+
+Deploy the inference server in the same region as your API for lowest latency.
+
+### Fine-tuning dataset export
+
+Build training JSONL from labeled records (`expected` hold-out labels):
+
+```bash
+python scripts/export_finetune_dataset.py \
+  --input data/test_cases.jsonl data/sample.jsonl \
+  --output data/finetune/train.jsonl \
+  --format openai
+```
+
+Formats: `openai` / `hf` (chat messages JSONL), `prompt_completion` (prompt + completion pairs).
+
+Each row matches runtime inference: system prompt + `build_prompt(record)` user message → assistant JSON with `should_send`, `next_message`, `next_action`, and `reasoning`.
+
+**Suggested workflow:**
+
+> **Memory (6 GB GPU):** Run **one heavy job at a time**. Do not run `train_lora.py` and `serve_local_model.py` together. Stop training before eval, or use `eval_lora.py --mock` for a lightweight check.
+
+1. Export `data/finetune/train.jsonl` from labeled JSONL
+2. Fine-tune a small instruct model (e.g. Qwen2.5-1.5B) with LoRA:
+
+```bash
+# Activate GPU venv, then:
+python scripts/train_lora.py \
+  --train-file data/finetune/train.jsonl \
+  --output-dir models/realpage-message-agent-v1
+```
+
+Defaults target `Qwen/Qwen2.5-1.5B-Instruct` with fp16 LoRA tuned for ~6 GB VRAM. Fine-tune deps live in `requirements-finetune.txt`.
+
+3. Serve the merged model locally (Windows-friendly alternative to vLLM):
+
+```bash
+python scripts/serve_local_model.py --model-dir models/realpage-message-agent-v1
+# Uses 4-bit loading by default (~1–2 GB). Pass --no-load-in-4bit for fp16.
+```
+
+4. Set `LLM_PROVIDER=local` in `.env`, then evaluate:
+
+```bash
+python scripts/eval_lora.py --input data/test_cases.jsonl --output outputs/lora_eval.jsonl
+```
+
+Or use vLLM in WSL/Linux if available, then set `LLM_PROVIDER=local`.
+
+5. Evaluate on hold-out JSONL without `expected` fields
 
 ---
 
