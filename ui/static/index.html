@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RealPage Message Agent — Live Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css?v=3" />
+</head>
+<body>
+  <div class="bg-gradient"></div>
+  <div class="bg-grid"></div>
+
+  <header class="header">
+    <div class="header-brand">
+      <div class="logo-mark">RP</div>
+      <div>
+        <h1>RealPage Message Agent</h1>
+        <p class="subtitle">Autonomous communication decisioning — live pipeline demo</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <label class="toggle" title="Use offline mock LLM (no API key needed)">
+        <input type="checkbox" id="mockToggle" checked />
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-label">Mock mode</span>
+      </label>
+      <button class="btn btn-ghost" id="loadSampleBtn">Load sample</button>
+      <button class="btn btn-primary" id="runBtn" disabled>
+        <span class="btn-icon">▶</span> Run agent
+      </button>
+    </div>
+  </header>
+
+  <section class="metrics-bar" id="metricsBar">
+    <div class="metric-card">
+      <span class="metric-label">Records</span>
+      <span class="metric-value" id="metricRecords">—</span>
+    </div>
+    <div class="metric-card accent-green">
+      <span class="metric-label">Sent</span>
+      <span class="metric-value" id="metricSent">—</span>
+    </div>
+    <div class="metric-card accent-amber">
+      <span class="metric-label">Suppressed</span>
+      <span class="metric-value" id="metricSuppressed">—</span>
+    </div>
+    <div class="metric-card accent-blue">
+      <span class="metric-label">Avg personalization</span>
+      <span class="metric-value" id="metricPersonalization">—</span>
+    </div>
+    <div class="metric-card accent-purple">
+      <span class="metric-label">Avg latency</span>
+      <span class="metric-value" id="metricLatency">—</span>
+    </div>
+    <div class="metric-card accent-teal">
+      <span class="metric-label">Threshold pass rate</span>
+      <span class="metric-value" id="metricThreshold">—</span>
+    </div>
+  </section>
+
+  <main class="layout">
+    <aside class="panel panel-left">
+      <div class="panel-header">
+        <h2>Input records</h2>
+        <span class="badge" id="inputCount">0 loaded</span>
+      </div>
+
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept=".jsonl" hidden />
+        <div class="upload-icon">⬆</div>
+        <p><strong>Drop JSONL here</strong> or click to browse</p>
+        <p class="upload-hint">One JSON object per line · consent · profile · constraints</p>
+      </div>
+
+      <ul class="record-list" id="recordList"></ul>
+    </aside>
+
+    <section class="panel panel-center">
+      <div class="panel-header">
+        <h2>Agent pipeline</h2>
+        <span class="badge badge-live" id="pipelineStatus">Idle</span>
+      </div>
+      <div class="pipeline-empty" id="pipelineEmpty">
+        <div class="empty-icon">⚡</div>
+        <p>Upload input or load the sample dataset, then run the agent to watch the full decision pipeline.</p>
+      </div>
+      <div class="timeline" id="timeline" hidden></div>
+    </section>
+
+    <aside class="panel panel-right">
+      <div class="panel-header">
+        <h2>Output & preview</h2>
+      </div>
+
+      <div class="preview-empty" id="previewEmpty">
+        <p>Agent output will appear here after a run.</p>
+      </div>
+
+      <div id="previewContent" hidden>
+        <div class="decision-banner" id="decisionBanner"></div>
+
+        <div class="message-preview" id="messagePreview"></div>
+
+        <div class="reasoning-box">
+          <h3>Agent reasoning</h3>
+          <p id="reasoningText"></p>
+        </div>
+
+        <div class="quality-grid" id="qualityGrid"></div>
+
+        <details class="json-details">
+          <summary>Raw output JSON</summary>
+          <pre id="outputJson"></pre>
+        </details>
+        <details class="json-details">
+          <summary>Input record JSON</summary>
+          <pre id="inputJson"></pre>
+        </details>
+      </div>
+    </aside>
+  </main>
+
+  <div class="toast-container" id="toastContainer"></div>
+  <div class="loading-overlay" id="loadingOverlay" hidden>
+    <div class="spinner"></div>
+    <p>Agent is thinking…</p>
+    <p class="loading-sub" id="loadingSub">Building prompts and invoking LLM</p>
+  </div>
+
+  <script src="/static/app.js?v=3"></script>
+</body>
+</html>
