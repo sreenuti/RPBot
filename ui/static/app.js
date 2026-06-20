@@ -61,6 +61,17 @@ function setLoading(show, subtext) {
   if (subtext) els.loadingSub.textContent = subtext;
 }
 
+const BATCH_SIZE_MOCK = 10;
+const BATCH_SIZE_LIVE = 3;
+
+function setPipelineStatus(text, mode = "idle") {
+  els.pipelineStatus.textContent = text;
+  els.pipelineStatus.classList.remove("running", "error", "complete");
+  if (mode !== "idle") {
+    els.pipelineStatus.classList.add(mode);
+  }
+}
+
 async function fetchJson(url, options = {}, timeoutMs = 30000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -73,7 +84,7 @@ async function fetchJson(url, options = {}, timeoutMs = 30000) {
     return data;
   } catch (err) {
     if (err.name === "AbortError") {
-      throw new Error("Request timed out. Is the server running on port 8080?");
+      throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s. Try Mock mode or fewer records per batch.`);
     }
     throw err;
   } finally {
@@ -92,6 +103,9 @@ function setRecords(records, filename) {
   resetPipeline();
   resetPreview();
   resetMetrics();
+  if (records.length) {
+    renderInputPreview();
+  }
 }
 
 function resetMetrics() {
@@ -104,8 +118,7 @@ function resetPipeline() {
   els.pipelineEmpty.hidden = false;
   els.timeline.hidden = true;
   els.timeline.innerHTML = "";
-  els.pipelineStatus.textContent = "Idle";
-  els.pipelineStatus.classList.remove("running");
+  setPipelineStatus("Idle");
 }
 
 function resetPreview() {
@@ -133,7 +146,39 @@ function selectRecord(index) {
   if (state.runResult) {
     renderPipeline();
     renderPreview();
+  } else {
+    renderInputPreview();
   }
+}
+
+function renderInputPreview() {
+  const input = state.records[state.selectedIndex];
+  if (!input) return;
+
+  els.pipelineEmpty.hidden = true;
+  els.timeline.hidden = false;
+  els.timeline.innerHTML = `
+    <div class="timeline-step">
+      <div class="step-icon info">${PHASE_ICONS.ingest}</div>
+      <div class="step-body">
+        <div class="step-header">
+          <span class="step-title">Input record selected</span>
+          <span class="step-phase">input</span>
+        </div>
+        <p class="step-message">Click <strong>Run agent</strong> to process ${state.records.length} loaded record(s). Use Mock mode for large batches on Vercel.</p>
+        <pre class="step-data">${escapeHtml(JSON.stringify(input, null, 2))}</pre>
+      </div>
+    </div>`;
+
+  els.previewEmpty.hidden = true;
+  els.previewContent.hidden = false;
+  els.decisionBanner.className = "decision-banner suppress";
+  els.decisionBanner.textContent = `Input preview · ${input.task_id}`;
+  els.messagePreview.innerHTML = '<p class="input-preview-hint">Agent output will appear here after you run the pipeline.</p>';
+  els.reasoningText.textContent = "Select Run agent to generate a decision for this record.";
+  els.qualityGrid.innerHTML = "";
+  els.outputJson.textContent = "(not generated yet)";
+  els.inputJson.textContent = JSON.stringify(input, null, 2);
 }
 
 function escapeHtml(text) {
@@ -151,10 +196,24 @@ function formatData(data) {
   return JSON.stringify(copy, null, 2);
 }
 
+function getRecordResult(index) {
+  const taskId = state.records[index]?.task_id;
+  if (!state.runResult || !taskId) return { output: null, recordTrace: null };
+  const output =
+    state.runResult.outputs.find((o) => o.task_id === taskId) ||
+    state.runResult.outputs[index] ||
+    null;
+  const recordTrace =
+    state.runResult.trace?.records?.find((r) => r.task_id === taskId) ||
+    state.runResult.trace?.records?.[index] ||
+    null;
+  return { output, recordTrace };
+}
+
 function renderPipeline() {
   if (!state.runResult?.trace) return;
 
-  const recordTrace = state.runResult.trace.records[state.selectedIndex];
+  const { recordTrace } = getRecordResult(state.selectedIndex);
   if (!recordTrace) return;
 
   els.pipelineEmpty.hidden = true;
@@ -193,9 +252,8 @@ function renderPipeline() {
 function renderPreview() {
   if (!state.runResult) return;
 
-  const output = state.runResult.outputs[state.selectedIndex];
+  const { output, recordTrace } = getRecordResult(state.selectedIndex);
   const input = state.records[state.selectedIndex];
-  const recordTrace = state.runResult.trace?.records[state.selectedIndex];
 
   if (!output) return;
 
@@ -309,36 +367,112 @@ async function uploadFile(file) {
   }
 }
 
+function computeSummary(outputs) {
+  const total = outputs.length;
+  const sent = outputs.filter((o) => o.should_send).length;
+  const channels = {};
+  outputs.forEach((o) => {
+    const key = o.should_send ? o.next_message.channel || "unknown" : "suppressed";
+    channels[key] = (channels[key] || 0) + 1;
+  });
+  const scores = outputs.map((o) => o.quality?.personalization_score ?? 0);
+  const latencies = outputs.map((o) => o.quality?.latency_ms ?? 0);
+  const maxSafety = Math.max(...outputs.map((o) => o.quality?.safety_violations ?? 0), 0);
+  const thresholdPassed = outputs.filter((o) => {
+    const q = o.quality || {};
+    return (q.safety_violations ?? 0) === 0;
+  }).length;
+
+  return {
+    total_records: total,
+    sent,
+    suppressed: total - sent,
+    channel_distribution: channels,
+    average_personalization_score: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0,
+    max_safety_violations: maxSafety,
+    average_latency_ms: latencies.length ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0,
+    threshold_pass_rate: total ? thresholdPassed / total : 0,
+  };
+}
+
+function mergeBatchResults(batchResults) {
+  const outputs = batchResults.flatMap((r) => r.outputs || []);
+  const records = batchResults.flatMap((r) => r.trace?.records || []);
+  const firstTrace = batchResults.find((r) => r.trace)?.trace;
+  const totalLatency = batchResults.reduce((sum, r) => sum + (r.trace?.total_latency_ms || 0), 0);
+
+  return {
+    outputs,
+    trace: firstTrace
+      ? {
+          ...firstTrace,
+          total_latency_ms: totalLatency,
+          summary: computeSummary(outputs),
+          records,
+        }
+      : null,
+  };
+}
+
 async function runAgent() {
   if (!state.records.length) return;
 
-  setLoading(true, "Running autonomous agent pipeline…");
-  els.pipelineStatus.textContent = "Running";
-  els.pipelineStatus.classList.add("running");
+  const mock = els.mockToggle.checked;
+  const batchSize = mock ? BATCH_SIZE_MOCK : BATCH_SIZE_LIVE;
+  const total = state.records.length;
+
+  if (!mock && total > batchSize) {
+    toast(`Live LLM: processing ${total} records in batches of ${batchSize} (may take several minutes).`, "success");
+  }
+
+  setLoading(true, `Running agent (0/${total})…`);
+  setPipelineStatus("Running", "running");
+  els.runBtn.disabled = true;
+
+  const batchResults = [];
 
   try {
-    const data = await fetchJson("/api/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        records: state.records,
-        mock: els.mockToggle.checked,
-      }),
-    }, 120000);
+    for (let start = 0; start < total; start += batchSize) {
+      const end = Math.min(start + batchSize, total);
+      const batch = state.records.slice(start, end);
+      setLoading(true, `Running agent (${end}/${total})…`);
 
-    state.runResult = data;
-    els.pipelineStatus.textContent = "Complete";
-    els.pipelineStatus.classList.remove("running");
+      const timeoutMs = mock ? 90000 : 180000;
+      const data = await fetchJson(
+        "/api/run",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ records: batch, mock }),
+        },
+        timeoutMs,
+      );
+      batchResults.push(data);
+    }
+
+    state.runResult = mergeBatchResults(batchResults);
+    setPipelineStatus("Complete", "complete");
 
     renderSummary();
     renderPipeline();
     renderPreview();
-    toast(`Processed ${data.outputs.length} record(s) in ${data.trace?.total_latency_ms ?? "?"} ms`);
+    toast(
+      `Processed ${state.runResult.outputs.length} record(s) in ${state.runResult.trace?.total_latency_ms ?? "?"} ms`,
+    );
   } catch (err) {
-    els.pipelineStatus.textContent = "Error";
-    els.pipelineStatus.classList.remove("running");
-    toast(err.message, "error");
+    if (batchResults.length) {
+      state.runResult = mergeBatchResults(batchResults);
+      renderSummary();
+      renderPipeline();
+      renderPreview();
+      toast(`Partial results: ${state.runResult.outputs.length}/${total} records before error: ${err.message}`, "error");
+      setPipelineStatus("Partial", "error");
+    } else {
+      setPipelineStatus("Error", "error");
+      toast(err.message, "error");
+    }
   } finally {
+    els.runBtn.disabled = state.records.length === 0;
     setLoading(false);
   }
 }

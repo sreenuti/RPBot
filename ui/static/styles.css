@@ -225,7 +225,10 @@ body {
   grid-template-columns: 280px 1fr 340px;
   gap: 1rem;
   padding: 0 2rem 2rem;
-  min-height: calc(100vh - 180px);
+  height: calc(100vh - 180px);
+  max-height: calc(100vh - 180px);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .panel {
@@ -236,6 +239,8 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
+  height: 100%;
 }
 
 .panel-header {
@@ -270,6 +275,16 @@ body {
   animation: pulse 1.5s infinite;
 }
 
+.badge-live.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+.badge-live.complete {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--green);
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
@@ -277,7 +292,9 @@ body {
 
 .upload-zone {
   margin: 1rem;
+  margin-bottom: 0.5rem;
   padding: 1.5rem 1rem;
+  flex-shrink: 0;
   border: 2px dashed rgba(148, 163, 184, 0.25);
   border-radius: 12px;
   text-align: center;
@@ -340,7 +357,7 @@ body {
 
 .panel-center,
 .panel-right {
-  min-height: 480px;
+  min-height: 0;
 }
 
 .panel-body {
@@ -349,17 +366,22 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 .pipeline-empty,
 .preview-empty {
   flex: 1;
-  display: grid;
-  place-items: center;
-  padding: 2rem;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 2rem 1.5rem;
   text-align: center;
   color: var(--muted);
   font-size: 0.9rem;
+  overflow-y: auto;
 }
 
 .pipeline-empty[hidden],
@@ -503,7 +525,12 @@ body {
   opacity: 0.5;
 }
 
-.decision-banner {
+.input-preview-hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 1rem;
+}
   padding: 0.75rem 1rem;
   border-radius: 10px;
   margin-bottom: 1rem;
