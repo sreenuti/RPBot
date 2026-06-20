@@ -3,6 +3,15 @@ name = "realpage-message-agent"
 version = "1.0.0"
 description = "Autonomous property management communication agent"
 requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "python-multipart>=0.0.12",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0",
+    "openai>=1.0",
+    "google-generativeai>=0.8",
+    "tzdata>=2024.1",
+]
 
 [tool.vercel]
-entrypoint = "ui.app:app"
+entrypoint = "app:app"
