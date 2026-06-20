@@ -73,7 +73,10 @@ Full diagrams and component details: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 
 ```
 ├── run.py                  # CLI entrypoint
-├── start_ui.py             # Demo UI launcher
+├── app.py                  # Vercel FastAPI entrypoint (re-exports ui.app)
+├── pyproject.toml          # Vercel entrypoint config
+├── vercel.json             # Vercel build settings
+├── start_ui.py             # Local demo UI launcher
 ├── requirements.txt
 ├── pytest.ini
 ├── data/sample.jsonl       # Example input records
@@ -113,6 +116,20 @@ python start_ui.py
 **Features:** JSONL upload, mock/live LLM toggle, pipeline timeline, chain-of-thought reasoning, SMS/email previews, quality metrics.
 
 API reference: **[docs/API.md](docs/API.md)**
+
+### Deploy to Vercel
+
+The FastAPI app is configured for Vercel via `pyproject.toml` (`entrypoint = "ui.app:app"`) and root `app.py`.
+
+1. Import/connect the [RPBot](https://github.com/sreenuti/RPBot) repo in Vercel
+2. Leave **Root Directory** empty (project root is the repo root)
+3. Add environment variables in Vercel → Settings → Environment Variables (for live LLM, not mock):
+   - `LLM_PROVIDER` — `openai` or `gemini`
+   - `OPENAI_API_KEY` / `GEMINI_API_KEY`
+   - `OPENAI_MODEL` / `GEMINI_MODEL` (optional)
+4. Redeploy
+
+**Demo tip:** Keep **Mock mode** enabled in the UI on Vercel for reliable demos (no API key, faster, avoids serverless timeouts). Real LLM runs may hit Vercel’s function duration limits on large batches.
 
 ---
 

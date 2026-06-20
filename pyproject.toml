@@ -1,0 +1,8 @@
+[project]
+name = "realpage-message-agent"
+version = "1.0.0"
+description = "Autonomous property management communication agent"
+requires-python = ">=3.11"
+
+[tool.vercel]
+entrypoint = "ui.app:app"
