@@ -1,0 +1,30 @@
+# Model weights & archives (HF endpoint serves inference)
+models
+models/**
+models.zip
+models.zip/**
+colab_upload.zip
+*.safetensors
+*.bin
+*.pt
+
+# Generated / training artifacts
+data/finetune
+data/finetune/**
+data/generated
+data/generated/**
+outputs
+outputs/**
+notebooks
+notebooks/**
+
+# Python / tooling / local only
+.venv
+.venv/**
+venv
+venv/**
+__pycache__
+**/__pycache__/**
+.pytest_cache
+.git
+.env

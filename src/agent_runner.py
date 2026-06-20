@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from src.evaluator import check_thresholds, evaluate
 from src.llm_client import LLMClient, LLMError
 from src.output_parser import OutputParseError, parse_agent_output
+from src.output_sanitizer import sanitize_output
 from src.prompt_builder import build_prompt, build_retry_prompt, record_to_context
 from src.schemas import AgentOutput, InputRecord
 from src.trace import RecordTrace, RunSummary, RunTrace, TraceStep, StepPhase, StepStatus
@@ -169,6 +170,8 @@ def process_record(
             if attempt == MAX_VALIDATION_RETRIES:
                 raise LLMError(f"Failed to parse LLM output for {record.task_id}: {parse_error}")
             continue
+
+        output = sanitize_output(output, record)
 
         validate_start = time.perf_counter()
         validation_errors = validate(output, record)
