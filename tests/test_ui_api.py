@@ -32,6 +32,13 @@ def test_config_reports_providers(monkeypatch):
     assert data["hf"]["configured"] is False
 
 
+def test_config_reports_gemini_judge(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
+    response = client.get("/api/config")
+    assert response.status_code == 200
+    assert response.json()["providers"]["gemini_judge"]["configured"] is True
+
+
 def test_run_rejects_hf_without_local_api_key(monkeypatch):
     monkeypatch.setenv(
         "LOCAL_BASE_URL",

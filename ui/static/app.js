@@ -521,7 +521,7 @@ async function runAgent() {
 
   if (total > batchSize) {
     toast(
-      `Live ${liveProviderLabel()}${els.useJudgeToggle.checked ? " + LLM judge" : ""}: processing ${total} records in batches of ${batchSize}.`,
+      `Live ${liveProviderLabel()}${els.useJudgeToggle.checked ? " + Gemini judge" : ""}: processing ${total} records in batches of ${batchSize}.`,
       "success",
     );
   }

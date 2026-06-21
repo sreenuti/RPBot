@@ -308,7 +308,8 @@ class LLMClient:
 
     def _call_provider_json(self, prompt: str, *, system_message: str | None = None) -> str:
         if self.provider == "gemini":
-            return self._call_gemini(prompt)
+            system = system_message or "Respond with JSON only."
+            return self._call_gemini(f"{system}\n\n{prompt}")
         if self.provider == "local":
             json_mode = os.getenv("LOCAL_JSON_MODE", "true").lower() in ("1", "true", "yes")
             return self._openai_chat_request(
@@ -505,7 +506,7 @@ class LLMClient:
         )
 
     def _call_gemini(self, prompt: str) -> str:
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = _env("GEMINI_API_KEY")
         if not api_key:
             raise LLMError("GEMINI_API_KEY is not set.")
         try:

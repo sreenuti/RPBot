@@ -247,7 +247,7 @@ def process_record(
                 _step(
                     trace_steps,
                     phase="judge",
-                    title="LLM judge",
+                    title="Gemini judge",
                     status="success" if output.llm_judge.passed else "warning",
                     elapsed_ms=judge_elapsed,
                     message=output.llm_judge.reasoning or "Judge evaluation complete.",
@@ -258,7 +258,7 @@ def process_record(
                 _step(
                     trace_steps,
                     phase="judge",
-                    title="LLM judge",
+                    title="Gemini judge",
                     status="error",
                     elapsed_ms=int((time.perf_counter() - judge_start) * 1000),
                     message=str(exc),

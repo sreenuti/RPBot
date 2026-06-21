@@ -73,6 +73,11 @@ def _provider_status() -> dict:
             "key_preview": _mask_secret(local_key),
             "needs_hf_token": hf_remote and not local_key_ok,
         },
+        "gemini_judge": {
+            "configured": bool(_env("GEMINI_API_KEY")),
+            "model": _env("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash",
+            "key_preview": _mask_secret(_env("GEMINI_API_KEY")),
+        },
     }
 
 
@@ -105,23 +110,28 @@ def _llm_for_request(*, use_openai: bool) -> LLMClient:
 
 
 def _judge_llm_for_request(*, use_judge: bool) -> LLMClient | None:
-    """Separate LLM for judge; prefers OpenAI when configured."""
+    """Separate LLM for judge; prefers Gemini for independent evaluation."""
     if not use_judge:
         return None
+    if _env("GEMINI_API_KEY"):
+        return LLMClient(mock=False, provider="gemini")
     if _env("OPENAI_API_KEY"):
         return LLMClient(mock=False, provider="openai")
     local_url = _env("LOCAL_BASE_URL") or _env("OPENAI_BASE_URL")
     if not local_url:
         raise HTTPException(
             status_code=400,
-            detail="LLM judge requires OPENAI_API_KEY or LOCAL_BASE_URL on the server.",
+            detail=(
+                "LLM judge requires GEMINI_API_KEY (recommended). "
+                "Or set OPENAI_API_KEY or LOCAL_BASE_URL as fallback."
+            ),
         )
     local_key = _env("LOCAL_API_KEY")
     hf_remote = bool(local_url and "huggingface" in local_url.lower())
     if hf_remote and (not local_key or local_key in ("local", "")):
         raise HTTPException(
             status_code=400,
-            detail="LLM judge on HF requires LOCAL_API_KEY on the server.",
+            detail="LLM judge fallback on HF requires LOCAL_API_KEY on the server.",
         )
     return LLMClient(mock=False, provider="local")
 
