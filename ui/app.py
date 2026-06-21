@@ -41,8 +41,9 @@ app.add_middleware(
 
 class RunRequest(BaseModel):
     records: list[dict]
-    mock: bool = True
+    mock: bool = False
     use_openai: bool = False
+    use_judge: bool = True
 
 
 def _mask_secret(value: str | None) -> str | None:
@@ -75,10 +76,8 @@ def _provider_status() -> dict:
     }
 
 
-def _llm_for_request(*, mock: bool, use_openai: bool) -> LLMClient:
-    """Build LLM client from UI flags: mock, OpenAI, or HF (local) endpoint."""
-    if mock:
-        return LLMClient(mock=True)
+def _llm_for_request(*, use_openai: bool) -> LLMClient:
+    """Build agent LLM client: OpenAI or HF (local) endpoint."""
     provider = "openai" if use_openai else "local"
     local_url = _env("LOCAL_BASE_URL") or _env("OPENAI_BASE_URL")
     if provider == "local" and not local_url:
@@ -103,6 +102,28 @@ def _llm_for_request(*, mock: bool, use_openai: bool) -> LLMClient:
             detail="OpenAI is not configured. Set OPENAI_API_KEY on the server.",
         )
     return LLMClient(mock=False, provider=provider)
+
+
+def _judge_llm_for_request(*, use_judge: bool) -> LLMClient | None:
+    """Separate LLM for judge; prefers OpenAI when configured."""
+    if not use_judge:
+        return None
+    if _env("OPENAI_API_KEY"):
+        return LLMClient(mock=False, provider="openai")
+    local_url = _env("LOCAL_BASE_URL") or _env("OPENAI_BASE_URL")
+    if not local_url:
+        raise HTTPException(
+            status_code=400,
+            detail="LLM judge requires OPENAI_API_KEY or LOCAL_BASE_URL on the server.",
+        )
+    local_key = _env("LOCAL_API_KEY")
+    hf_remote = bool(local_url and "huggingface" in local_url.lower())
+    if hf_remote and (not local_key or local_key in ("local", "")):
+        raise HTTPException(
+            status_code=400,
+            detail="LLM judge on HF requires LOCAL_API_KEY on the server.",
+        )
+    return LLMClient(mock=False, provider="local")
 
 
 def _parse_jsonl_bytes(content: bytes, filename: str) -> list[dict]:
@@ -185,9 +206,19 @@ async def run_agent(request: RunRequest) -> dict:
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    llm = _llm_for_request(mock=request.mock, use_openai=request.use_openai)
+    if request.mock:
+        llm = LLMClient(mock=True)
+        judge_llm = None
+    else:
+        llm = _llm_for_request(use_openai=request.use_openai)
+        judge_llm = _judge_llm_for_request(use_judge=request.use_judge)
     try:
-        outputs, trace = run_batch(records, llm, capture_trace=True)
+        outputs, trace = run_batch(
+            records,
+            llm,
+            judge_llm=judge_llm,
+            capture_trace=True,
+        )
     except LLMError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

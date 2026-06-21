@@ -13,14 +13,15 @@ const PHASE_ICONS = {
   validate: "✅",
   retry: "🔄",
   evaluate: "📊",
+  judge: "⚖️",
   threshold: "🎯",
   complete: "🏁",
   error: "❌",
 };
 
 const els = {
-  mockToggle: document.getElementById("mockToggle"),
   useOpenaiToggle: document.getElementById("useOpenaiToggle"),
+  useJudgeToggle: document.getElementById("useJudgeToggle"),
   providerToggleWrap: document.getElementById("providerToggleWrap"),
   loadSampleBtn: document.getElementById("loadSampleBtn"),
   exportOutputsBtn: document.getElementById("exportOutputsBtn"),
@@ -38,6 +39,8 @@ const els = {
   decisionBanner: document.getElementById("decisionBanner"),
   messagePreview: document.getElementById("messagePreview"),
   reasoningText: document.getElementById("reasoningText"),
+  judgeBox: document.getElementById("judgeBox"),
+  judgeText: document.getElementById("judgeText"),
   qualityGrid: document.getElementById("qualityGrid"),
   outputJson: document.getElementById("outputJson"),
   inputJson: document.getElementById("inputJson"),
@@ -50,6 +53,8 @@ const els = {
   metricPersonalization: document.getElementById("metricPersonalization"),
   metricLatency: document.getElementById("metricLatency"),
   metricThreshold: document.getElementById("metricThreshold"),
+  metricJudge: document.getElementById("metricJudge"),
+  judgeMetricCard: document.getElementById("judgeMetricCard"),
 };
 
 function toast(message, type = "success") {
@@ -65,7 +70,6 @@ function setLoading(show, subtext) {
   if (subtext) els.loadingSub.textContent = subtext;
 }
 
-const BATCH_SIZE_MOCK = 10;
 const BATCH_SIZE_LIVE = 3;
 
 function syncExportButtons() {
@@ -119,12 +123,6 @@ async function copyOutputs() {
   }
 }
 
-function syncProviderToggleState() {
-  const mock = els.mockToggle.checked;
-  els.useOpenaiToggle.disabled = mock;
-  els.providerToggleWrap.classList.toggle("toggle-disabled", mock);
-}
-
 function liveProviderLabel() {
   return els.useOpenaiToggle.checked ? "OpenAI" : "HF fine-tuned";
 }
@@ -149,7 +147,7 @@ async function fetchJson(url, options = {}, timeoutMs = 30000) {
     return data;
   } catch (err) {
     if (err.name === "AbortError") {
-      throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s. Try Mock mode or fewer records per batch.`);
+      throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s. Try fewer records per batch or disable LLM judge.`);
     }
     throw err;
   } finally {
@@ -175,7 +173,7 @@ function setRecords(records, filename) {
 }
 
 function resetMetrics() {
-  ["metricRecords", "metricSent", "metricSuppressed", "metricPersonalization", "metricLatency", "metricThreshold"].forEach((id) => {
+  ["metricRecords", "metricSent", "metricSuppressed", "metricPersonalization", "metricLatency", "metricThreshold", "metricJudge"].forEach((id) => {
     document.getElementById(id).textContent = "—";
   });
 }
@@ -231,7 +229,7 @@ function renderInputPreview() {
           <span class="step-title">Input record selected</span>
           <span class="step-phase">input</span>
         </div>
-        <p class="step-message">Click <strong>Run agent</strong> to process ${state.records.length} loaded record(s). Use Mock mode for large batches on Vercel.</p>
+        <p class="step-message">Click <strong>Run agent</strong> to process ${state.records.length} loaded record(s).</p>
         <pre class="step-data">${escapeHtml(JSON.stringify(input, null, 2))}</pre>
       </div>
     </div>`;
@@ -242,6 +240,8 @@ function renderInputPreview() {
   els.decisionBanner.textContent = `Input preview · ${input.task_id}`;
   els.messagePreview.innerHTML = '<p class="input-preview-hint">Agent output will appear here after you run the pipeline.</p>';
   els.reasoningText.textContent = "Select Run agent to generate a decision for this record.";
+  els.judgeBox.hidden = true;
+  els.judgeText.textContent = "";
   els.qualityGrid.innerHTML = "";
   els.outputJson.textContent = "(not generated yet)";
   els.inputJson.textContent = JSON.stringify(input, null, 2);
@@ -336,14 +336,33 @@ function renderPreview() {
   els.reasoningText.textContent = output.reasoning || recordTrace?.steps?.find((s) => s.phase === "complete")?.message || "—";
 
   const q = output.quality || {};
+  const judge = output.llm_judge;
   const thresholdStep = recordTrace?.steps?.find((s) => s.phase === "threshold");
   const thresholdPassed = thresholdStep?.data?.passed ?? true;
+
+  if (judge) {
+    els.judgeBox.hidden = false;
+    els.judgeText.textContent = judge.reasoning || "—";
+  } else {
+    els.judgeBox.hidden = true;
+    els.judgeText.textContent = "";
+  }
+
+  const judgeItems = judge
+    ? `
+    <div class="quality-item ${judge.passed ? "pass" : "fail"}"><span class="label">Judge verdict</span><div class="value">${judge.passed ? "PASS" : "FAIL"}</div></div>
+    <div class="quality-item"><span class="label">Judge overall</span><div class="value">${judge.overall_score ?? "—"}</div></div>
+    <div class="quality-item"><span class="label">Compliance</span><div class="value">${judge.compliance_score ?? "—"}</div></div>
+    <div class="quality-item"><span class="label">Decision</span><div class="value">${judge.decision_score ?? "—"}</div></div>
+    <div class="quality-item"><span class="label">Tone</span><div class="value">${judge.tone_score ?? "—"}</div></div>`
+    : "";
 
   els.qualityGrid.innerHTML = `
     <div class="quality-item"><span class="label">Latency</span><div class="value">${q.latency_ms ?? "—"} ms</div></div>
     <div class="quality-item ${q.personalization_score >= 0.8 ? "pass" : "fail"}"><span class="label">Personalization</span><div class="value">${q.personalization_score ?? "—"}</div></div>
     <div class="quality-item ${q.safety_violations === 0 ? "pass" : "fail"}"><span class="label">Safety violations</span><div class="value">${q.safety_violations ?? 0}</div></div>
     <div class="quality-item ${thresholdPassed ? "pass" : "fail"}"><span class="label">Thresholds</span><div class="value">${thresholdPassed ? "PASS" : "FAIL"}</div></div>
+    ${judgeItems}
   `;
 
   els.outputJson.textContent = JSON.stringify(output, null, 2);
@@ -386,6 +405,13 @@ function renderSummary() {
   els.metricPersonalization.textContent = summary.average_personalization_score.toFixed(2);
   els.metricLatency.textContent = `${Math.round(summary.average_latency_ms)} ms`;
   els.metricThreshold.textContent = `${Math.round(summary.threshold_pass_rate * 100)}%`;
+  if (summary.judge_pass_rate != null) {
+    els.metricJudge.textContent = `${Math.round(summary.judge_pass_rate * 100)}%`;
+    els.judgeMetricCard.hidden = false;
+  } else {
+    els.metricJudge.textContent = "—";
+    els.judgeMetricCard.hidden = !els.useJudgeToggle.checked;
+  }
 }
 
 async function loadSample({ blocking = false } = {}) {
@@ -448,6 +474,9 @@ function computeSummary(outputs) {
     const q = o.quality || {};
     return (q.safety_violations ?? 0) === 0;
   }).length;
+  const judged = outputs.filter((o) => o.llm_judge);
+  const judgePassed = judged.filter((o) => o.llm_judge.passed).length;
+  const judgeScores = judged.map((o) => o.llm_judge.overall_score ?? 0);
 
   return {
     total_records: total,
@@ -458,6 +487,10 @@ function computeSummary(outputs) {
     max_safety_violations: maxSafety,
     average_latency_ms: latencies.length ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0,
     threshold_pass_rate: total ? thresholdPassed / total : 0,
+    judge_pass_rate: judged.length ? judgePassed / judged.length : null,
+    average_judge_score: judgeScores.length
+      ? judgeScores.reduce((a, b) => a + b, 0) / judgeScores.length
+      : null,
   };
 }
 
@@ -483,13 +516,12 @@ function mergeBatchResults(batchResults) {
 async function runAgent() {
   if (!state.records.length) return;
 
-  const mock = els.mockToggle.checked;
-  const batchSize = mock ? BATCH_SIZE_MOCK : BATCH_SIZE_LIVE;
+  const batchSize = BATCH_SIZE_LIVE;
   const total = state.records.length;
 
-  if (!mock && total > batchSize) {
+  if (total > batchSize) {
     toast(
-      `Live ${liveProviderLabel()}: processing ${total} records in batches of ${batchSize} (may take several minutes).`,
+      `Live ${liveProviderLabel()}${els.useJudgeToggle.checked ? " + LLM judge" : ""}: processing ${total} records in batches of ${batchSize}.`,
       "success",
     );
   }
@@ -506,7 +538,6 @@ async function runAgent() {
       const batch = state.records.slice(start, end);
       setLoading(true, `Running agent (${end}/${total})…`);
 
-      const timeoutMs = mock ? 90000 : 180000;
       const data = await fetchJson(
         "/api/run",
         {
@@ -514,11 +545,12 @@ async function runAgent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             records: batch,
-            mock,
-            use_openai: !mock && els.useOpenaiToggle.checked,
+            mock: false,
+            use_openai: els.useOpenaiToggle.checked,
+            use_judge: els.useJudgeToggle.checked,
           }),
         },
-        timeoutMs,
+        180000,
       );
       batchResults.push(data);
     }
@@ -556,7 +588,6 @@ els.loadSampleBtn.addEventListener("click", () => loadSample({ blocking: true })
 els.runBtn.addEventListener("click", runAgent);
 els.exportOutputsBtn.addEventListener("click", exportOutputs);
 els.copyOutputsBtn.addEventListener("click", copyOutputs);
-els.mockToggle.addEventListener("change", syncProviderToggleState);
 
 els.uploadZone.addEventListener("click", () => els.fileInput.click());
 els.fileInput.addEventListener("change", (e) => {
@@ -575,4 +606,3 @@ els.uploadZone.addEventListener("drop", (e) => {
 });
 
 loadSample({ blocking: false });
-syncProviderToggleState();

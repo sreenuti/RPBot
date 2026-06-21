@@ -296,6 +296,42 @@ class LLMClient:
             return _mock_autonomous_decision(record)
         return self._generate_api(prompt)
 
+    def complete_json(self, prompt: str, *, system_message: str | None = None) -> dict[str, Any]:
+        """Single-turn JSON completion (e.g. LLM-as-judge). Requires a live provider."""
+        if self.mock:
+            raise LLMError("Live LLM required for JSON completion.")
+        text = self._call_provider_json(prompt, system_message=system_message)
+        try:
+            return _extract_json(text)
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise LLMError(f"LLM returned invalid JSON: {exc}") from exc
+
+    def _call_provider_json(self, prompt: str, *, system_message: str | None = None) -> str:
+        if self.provider == "gemini":
+            return self._call_gemini(prompt)
+        if self.provider == "local":
+            json_mode = os.getenv("LOCAL_JSON_MODE", "true").lower() in ("1", "true", "yes")
+            return self._openai_chat_request(
+                model=self.local_model,
+                prompt=prompt,
+                api_key=self.local_api_key,
+                base_url=self.local_base_url,
+                json_mode=json_mode,
+                system_message=system_message or "Respond with JSON only.",
+                for_local=True,
+            )
+        api_key = _env("OPENAI_API_KEY")
+        if not api_key:
+            raise LLMError("OPENAI_API_KEY is not set.")
+        return self._openai_chat_request(
+            model=self.openai_model,
+            prompt=prompt,
+            api_key=api_key,
+            base_url=self._resolve_openai_base_url(),
+            json_mode=True,
+            system_message=system_message or "Respond with JSON only.",
+        )
+
     def _generate_api(self, prompt: str) -> dict[str, Any]:
         text = self._call_provider(prompt)
         try:

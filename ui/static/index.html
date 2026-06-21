@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=7" />
+  <link rel="stylesheet" href="/static/styles.css?v=8" />
 </head>
 <body>
   <div class="bg-gradient"></div>
@@ -22,15 +22,15 @@
       </div>
     </div>
     <div class="header-actions">
-      <label class="toggle" title="Use offline mock LLM (no API key needed)">
-        <input type="checkbox" id="mockToggle" checked />
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="toggle-label">Mock mode</span>
-      </label>
-      <label class="toggle" id="providerToggleWrap" title="When Mock is off: checked = OpenAI GPT, unchecked = Hugging Face fine-tuned endpoint">
+      <label class="toggle" id="providerToggleWrap" title="Checked = OpenAI GPT-4o-mini; unchecked = Hugging Face fine-tuned endpoint">
         <input type="checkbox" id="useOpenaiToggle" />
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
         <span class="toggle-label">Use OpenAI</span>
+      </label>
+      <label class="toggle" title="After each decision, a separate LLM scores tone, compliance, and decision quality">
+        <input type="checkbox" id="useJudgeToggle" checked />
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-label">LLM judge</span>
       </label>
       <button class="btn btn-ghost" id="exportOutputsBtn" disabled title="Download all agent outputs as JSONL">
         Export JSONL
@@ -88,6 +88,13 @@
       </div>
       <span class="metric-value" id="metricThreshold">—</span>
     </div>
+    <div class="metric-card accent-indigo" id="judgeMetricCard">
+      <div class="metric-label-row">
+        <span class="metric-label">Judge pass rate</span>
+        <button type="button" class="metric-info" aria-label="About Judge pass rate" data-tooltip="When LLM judge is enabled, percentage of records the judge scored as passing (overall quality and compliance).">i</button>
+      </div>
+      <span class="metric-value" id="metricJudge">—</span>
+    </div>
   </section>
 
   <main class="layout">
@@ -140,6 +147,11 @@
           <p id="reasoningText"></p>
         </div>
 
+        <div class="reasoning-box judge-box" id="judgeBox" hidden>
+          <h3>LLM judge</h3>
+          <p id="judgeText"></p>
+        </div>
+
         <div class="quality-grid" id="qualityGrid"></div>
 
         <details class="json-details">
@@ -162,6 +174,6 @@
     <p class="loading-sub" id="loadingSub">Building prompts and invoking LLM</p>
   </div>
 
-  <script src="/static/app.js?v=7"></script>
+  <script src="/static/app.js?v=8"></script>
 </body>
 </html>

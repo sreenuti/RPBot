@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from src.evaluator import check_thresholds, evaluate
 from src.llm_client import LLMClient, LLMError
+from src.llm_judge import run_llm_judge
 from src.output_parser import OutputParseError, parse_agent_output
 from src.output_sanitizer import sanitize_output
 from src.prompt_builder import build_prompt, build_retry_prompt, record_to_context
@@ -47,6 +48,7 @@ def process_record(
     record: InputRecord,
     llm: LLMClient,
     *,
+    judge_llm: LLMClient | None = None,
     verbose: bool = False,
     capture_trace: bool = False,
 ) -> tuple[AgentOutput, RecordTrace | None]:
@@ -235,6 +237,36 @@ def process_record(
                 "latency_ms": output.quality.latency_ms,
             },
         )
+
+    if judge_llm:
+        judge_start = time.perf_counter()
+        try:
+            output.llm_judge = run_llm_judge(record, output, judge_llm)
+            judge_elapsed = int((time.perf_counter() - judge_start) * 1000)
+            if capture_trace:
+                _step(
+                    trace_steps,
+                    phase="judge",
+                    title="LLM judge",
+                    status="success" if output.llm_judge.passed else "warning",
+                    elapsed_ms=judge_elapsed,
+                    message=output.llm_judge.reasoning or "Judge evaluation complete.",
+                    data=output.llm_judge.model_dump(),
+                )
+        except LLMError as exc:
+            if capture_trace:
+                _step(
+                    trace_steps,
+                    phase="judge",
+                    title="LLM judge",
+                    status="error",
+                    elapsed_ms=int((time.perf_counter() - judge_start) * 1000),
+                    message=str(exc),
+                )
+            if verbose:
+                print(f"[warn] {record.task_id} judge failed: {exc}")
+
+    if capture_trace:
         _step(
             trace_steps,
             phase="threshold",
@@ -298,9 +330,17 @@ def _build_summary(outputs: list[AgentOutput], records: list[InputRecord]) -> Ru
     latencies = [o.quality.latency_ms or 0 for o in outputs]
     max_safety = max((o.quality.safety_violations for o in outputs), default=0)
     threshold_passed = 0
+    judge_scores: list[float] = []
+    judge_passed = 0
+    judge_count = 0
     for output, record in zip(outputs, records):
         if check_thresholds(output.quality, record).passed:
             threshold_passed += 1
+        if output.llm_judge is not None:
+            judge_count += 1
+            judge_scores.append(output.llm_judge.overall_score)
+            if output.llm_judge.passed:
+                judge_passed += 1
 
     return RunSummary(
         total_records=total,
@@ -311,6 +351,10 @@ def _build_summary(outputs: list[AgentOutput], records: list[InputRecord]) -> Ru
         max_safety_violations=max_safety,
         average_latency_ms=round(sum(latencies) / len(latencies), 1) if latencies else 0.0,
         threshold_pass_rate=round(threshold_passed / total, 2) if total else 0.0,
+        judge_pass_rate=round(judge_passed / judge_count, 2) if judge_count else None,
+        average_judge_score=round(sum(judge_scores) / len(judge_scores), 2)
+        if judge_scores
+        else None,
     )
 
 
@@ -318,6 +362,7 @@ def run_batch(
     records: list[InputRecord],
     llm: LLMClient,
     *,
+    judge_llm: LLMClient | None = None,
     verbose: bool = False,
     capture_trace: bool = False,
 ) -> tuple[list[AgentOutput], RunTrace | None]:
@@ -336,6 +381,7 @@ def run_batch(
         output, trace = process_record(
             record,
             llm,
+            judge_llm=judge_llm,
             verbose=verbose,
             capture_trace=capture_trace,
         )
