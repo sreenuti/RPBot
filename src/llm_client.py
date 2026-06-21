@@ -416,16 +416,28 @@ class LLMClient:
 
         return response.choices[0].message.content or "{}"
 
+    def _resolve_openai_base_url(self) -> str | None:
+        """OpenAI API base URL; ignore HF/local endpoint URLs mis-set as OPENAI_BASE_URL."""
+        base_url = os.getenv("OPENAI_BASE_URL")
+        if not base_url:
+            return None
+        normalized = base_url.rstrip("/")
+        local_url = (os.getenv("LOCAL_BASE_URL") or "").rstrip("/")
+        if local_url and normalized == local_url:
+            return None
+        if "endpoints.huggingface.cloud" in normalized:
+            return None
+        return base_url
+
     def _call_openai(self, prompt: str) -> str:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise LLMError("OPENAI_API_KEY is not set.")
-        base_url = os.getenv("OPENAI_BASE_URL")
         return self._openai_chat_request(
             model=self.openai_model,
             prompt=prompt,
             api_key=api_key,
-            base_url=base_url,
+            base_url=self._resolve_openai_base_url(),
             json_mode=True,
         )
 

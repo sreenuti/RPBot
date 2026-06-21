@@ -37,6 +37,27 @@ def test_local_provider_requires_base_url(monkeypatch):
         client.generate('{"task":"test"}')
 
 
+def test_openai_ignores_hf_base_url(monkeypatch):
+    hf_url = "https://abc.eu-west-1.aws.endpoints.huggingface.cloud/v1"
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_BASE_URL", hf_url)
+    monkeypatch.setenv("LOCAL_BASE_URL", hf_url)
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock(message=MagicMock(content='{"should_send": false}'))]
+    mock_client.chat.completions.create.return_value = mock_response
+
+    openai_module = types.ModuleType("openai")
+    openai_module.OpenAI = MagicMock(return_value=mock_client)
+    monkeypatch.setitem(sys.modules, "openai", openai_module)
+
+    client = LLMClient(mock=False, provider="openai")
+    result = client.generate('{"task":"test"}')
+
+    assert result == {"should_send": False}
+    openai_module.OpenAI.assert_called_once_with(api_key="sk-test")
+
+
 def test_local_provider_calls_openai_compatible_endpoint(local_env, monkeypatch):
     monkeypatch.delenv("LOCAL_MAX_TOKENS", raising=False)
     mock_client = MagicMock()
