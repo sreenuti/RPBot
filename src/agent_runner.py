@@ -326,7 +326,10 @@ def run_batch(
     outputs: list[AgentOutput] = []
     record_traces: list[RecordTrace] = []
 
-    if not llm.mock and os.getenv("LLM_WARMUP", "true").lower() in ("1", "true", "yes"):
+    if (
+        not llm.mock
+        and os.getenv("LLM_WARMUP", "false").lower() in ("1", "true", "yes")
+    ):
         llm.warmup()
 
     for record in records:

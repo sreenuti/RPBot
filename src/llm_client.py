@@ -359,7 +359,7 @@ class LLMClient:
             raw = os.getenv("LOCAL_MAX_TOKENS")
             if raw:
                 return int(raw)
-            return 384
+            return 512
         raw = os.getenv("OPENAI_MAX_TOKENS")
         return int(raw) if raw else None
 
