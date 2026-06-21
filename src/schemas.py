@@ -89,15 +89,6 @@ class QualityMetrics(BaseModel):
     latency_ms: int | None = None
 
 
-class LLMJudgeResult(BaseModel):
-    passed: bool
-    overall_score: float
-    decision_score: float = 0.0
-    compliance_score: float = 0.0
-    tone_score: float = 0.0
-    reasoning: str = ""
-
-
 class AgentOutput(BaseModel):
     task_id: str
     should_send: bool
@@ -105,4 +96,3 @@ class AgentOutput(BaseModel):
     next_action: NextAction
     reasoning: str
     quality: QualityMetrics = Field(default_factory=QualityMetrics)
-    llm_judge: LLMJudgeResult | None = None

@@ -16,7 +16,6 @@ StepPhase = Literal[
     "validate",
     "retry",
     "evaluate",
-    "judge",
     "threshold",
     "complete",
     "error",
@@ -52,8 +51,6 @@ class RunSummary(BaseModel):
     max_safety_violations: int
     average_latency_ms: float
     threshold_pass_rate: float
-    judge_pass_rate: float | None = None
-    average_judge_score: float | None = None
 
 
 class RunTrace(BaseModel):

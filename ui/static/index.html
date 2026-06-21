@@ -27,11 +27,6 @@
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
         <span class="toggle-label">Use OpenAI</span>
       </label>
-      <label class="toggle" title="After each decision, Gemini independently scores tone, compliance, and decision quality">
-        <input type="checkbox" id="useJudgeToggle" checked />
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="toggle-label">Gemini judge</span>
-      </label>
       <button class="btn btn-ghost" id="exportOutputsBtn" disabled title="Download all agent outputs as JSONL">
         Export JSONL
       </button>
@@ -88,13 +83,6 @@
       </div>
       <span class="metric-value" id="metricThreshold">—</span>
     </div>
-    <div class="metric-card accent-indigo" id="judgeMetricCard">
-      <div class="metric-label-row">
-        <span class="metric-label">Judge pass rate</span>
-        <button type="button" class="metric-info" aria-label="About Judge pass rate" data-tooltip="When Gemini judge is enabled, percentage of records Gemini scored as passing (overall quality and compliance). Independent of the agent model.">i</button>
-      </div>
-      <span class="metric-value" id="metricJudge">—</span>
-    </div>
   </section>
 
   <main class="layout">
@@ -145,11 +133,6 @@
         <div class="reasoning-box">
           <h3>Agent reasoning</h3>
           <p id="reasoningText"></p>
-        </div>
-
-        <div class="reasoning-box judge-box" id="judgeBox" hidden>
-          <h3>Gemini judge</h3>
-          <p id="judgeText"></p>
         </div>
 
         <div class="quality-grid" id="qualityGrid"></div>

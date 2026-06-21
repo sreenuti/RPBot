@@ -353,7 +353,6 @@ A full module-by-module review with findings and recommendations is in **[docs/C
 - Async batch processing with rate limiting
 - Queue-based ingestion (SQS/Kafka)
 - Observability dashboard (sent/suppressed rates, channel mix)
-- LLM-as-judge evaluation for tone and compliance
 - Human approval workflow for low-confidence messages
 - Immutable audit logs (input hash, prompt, output, validator results)
 

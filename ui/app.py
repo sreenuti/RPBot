@@ -43,7 +43,6 @@ class RunRequest(BaseModel):
     records: list[dict]
     mock: bool = False
     use_openai: bool = False
-    use_judge: bool = True
 
 
 def _mask_secret(value: str | None) -> str | None:
@@ -72,11 +71,6 @@ def _provider_status() -> dict:
             "model": _env("LOCAL_MODEL"),
             "key_preview": _mask_secret(local_key),
             "needs_hf_token": hf_remote and not local_key_ok,
-        },
-        "gemini_judge": {
-            "configured": bool(_env("GEMINI_API_KEY")),
-            "model": _env("GEMINI_MODEL", "gemini-2.0-flash") or "gemini-2.0-flash",
-            "key_preview": _mask_secret(_env("GEMINI_API_KEY")),
         },
     }
 
@@ -107,33 +101,6 @@ def _llm_for_request(*, use_openai: bool) -> LLMClient:
             detail="OpenAI is not configured. Set OPENAI_API_KEY on the server.",
         )
     return LLMClient(mock=False, provider=provider)
-
-
-def _judge_llm_for_request(*, use_judge: bool) -> LLMClient | None:
-    """Separate LLM for judge; prefers Gemini for independent evaluation."""
-    if not use_judge:
-        return None
-    if _env("GEMINI_API_KEY"):
-        return LLMClient(mock=False, provider="gemini")
-    if _env("OPENAI_API_KEY"):
-        return LLMClient(mock=False, provider="openai")
-    local_url = _env("LOCAL_BASE_URL") or _env("OPENAI_BASE_URL")
-    if not local_url:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "LLM judge requires GEMINI_API_KEY (recommended). "
-                "Or set OPENAI_API_KEY or LOCAL_BASE_URL as fallback."
-            ),
-        )
-    local_key = _env("LOCAL_API_KEY")
-    hf_remote = bool(local_url and "huggingface" in local_url.lower())
-    if hf_remote and (not local_key or local_key in ("local", "")):
-        raise HTTPException(
-            status_code=400,
-            detail="LLM judge fallback on HF requires LOCAL_API_KEY on the server.",
-        )
-    return LLMClient(mock=False, provider="local")
 
 
 def _parse_jsonl_bytes(content: bytes, filename: str) -> list[dict]:
@@ -218,15 +185,12 @@ async def run_agent(request: RunRequest) -> dict:
 
     if request.mock:
         llm = LLMClient(mock=True)
-        judge_llm = None
     else:
         llm = _llm_for_request(use_openai=request.use_openai)
-        judge_llm = _judge_llm_for_request(use_judge=request.use_judge)
     try:
         outputs, trace = run_batch(
             records,
             llm,
-            judge_llm=judge_llm,
             capture_trace=True,
         )
     except LLMError as exc:

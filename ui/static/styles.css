@@ -312,11 +312,6 @@ body {
 .accent-blue .metric-value { color: var(--blue); }
 .accent-purple .metric-value { color: var(--purple); }
 .accent-teal .metric-value { color: var(--teal); }
-.accent-indigo .metric-value { color: var(--indigo); }
-
-.judge-box {
-  border-left: 3px solid var(--indigo);
-}
 
 .layout {
   display: grid;

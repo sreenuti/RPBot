@@ -32,12 +32,6 @@ def test_config_reports_providers(monkeypatch):
     assert data["hf"]["configured"] is False
 
 
-def test_config_reports_gemini_judge(monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
-    response = client.get("/api/config")
-    assert response.status_code == 200
-    assert response.json()["providers"]["gemini_judge"]["configured"] is True
-
 
 def test_run_rejects_hf_without_local_api_key(monkeypatch):
     monkeypatch.setenv(
@@ -73,14 +67,6 @@ def test_run_mock_agent():
     assert data["trace"]["mock"] is True
     assert data["trace"]["summary"]["total_records"] == 2
 
-
-def test_run_accepts_use_judge_flag_with_mock():
-    sample = client.get("/api/sample").json()
-    response = client.post(
-        "/api/run",
-        json={"records": sample["records"][:1], "mock": True, "use_judge": False},
-    )
-    assert response.status_code == 200
 
 
 def test_run_rejects_empty_records():
