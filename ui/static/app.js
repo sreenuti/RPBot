@@ -23,6 +23,8 @@ const els = {
   useOpenaiToggle: document.getElementById("useOpenaiToggle"),
   providerToggleWrap: document.getElementById("providerToggleWrap"),
   loadSampleBtn: document.getElementById("loadSampleBtn"),
+  exportOutputsBtn: document.getElementById("exportOutputsBtn"),
+  copyOutputsBtn: document.getElementById("copyOutputsBtn"),
   runBtn: document.getElementById("runBtn"),
   uploadZone: document.getElementById("uploadZone"),
   fileInput: document.getElementById("fileInput"),
@@ -65,6 +67,57 @@ function setLoading(show, subtext) {
 
 const BATCH_SIZE_MOCK = 10;
 const BATCH_SIZE_LIVE = 3;
+
+function syncExportButtons() {
+  const hasOutputs = Boolean(state.runResult?.outputs?.length);
+  els.exportOutputsBtn.disabled = !hasOutputs;
+  els.copyOutputsBtn.disabled = !hasOutputs;
+}
+
+function buildExportJsonl() {
+  if (!state.runResult?.outputs?.length) {
+    return "";
+  }
+  return `${state.runResult.outputs.map((o) => JSON.stringify(o)).join("\n")}\n`;
+}
+
+function exportFilename() {
+  const base = state.filename?.replace(/\.jsonl$/i, "") || "holdout";
+  return `${base}-outputs.jsonl`;
+}
+
+function exportOutputs() {
+  const content = buildExportJsonl();
+  if (!content) {
+    toast("No outputs to export — run the agent first", "error");
+    return;
+  }
+  const blob = new Blob([content], { type: "application/x-ndjson;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const filename = exportFilename();
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  toast(`Exported ${state.runResult.outputs.length} output(s) to ${filename}`);
+}
+
+async function copyOutputs() {
+  const content = buildExportJsonl();
+  if (!content) {
+    toast("No outputs to copy — run the agent first", "error");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(content);
+    toast(`Copied ${state.runResult.outputs.length} output(s) to clipboard`);
+  } catch {
+    toast("Clipboard access denied — use Export JSONL instead", "error");
+  }
+}
 
 function syncProviderToggleState() {
   const mock = els.mockToggle.checked;
@@ -115,6 +168,7 @@ function setRecords(records, filename) {
   resetPipeline();
   resetPreview();
   resetMetrics();
+  syncExportButtons();
   if (records.length) {
     renderInputPreview();
   }
@@ -475,6 +529,7 @@ async function runAgent() {
     renderSummary();
     renderPipeline();
     renderPreview();
+    syncExportButtons();
     toast(
       `Processed ${state.runResult.outputs.length} record(s) in ${state.runResult.trace?.total_latency_ms ?? "?"} ms`,
     );
@@ -484,6 +539,7 @@ async function runAgent() {
       renderSummary();
       renderPipeline();
       renderPreview();
+      syncExportButtons();
       toast(`Partial results: ${state.runResult.outputs.length}/${total} records before error: ${err.message}`, "error");
       setPipelineStatus("Partial", "error");
     } else {
@@ -498,6 +554,8 @@ async function runAgent() {
 
 els.loadSampleBtn.addEventListener("click", () => loadSample({ blocking: true }));
 els.runBtn.addEventListener("click", runAgent);
+els.exportOutputsBtn.addEventListener("click", exportOutputs);
+els.copyOutputsBtn.addEventListener("click", copyOutputs);
 els.mockToggle.addEventListener("change", syncProviderToggleState);
 
 els.uploadZone.addEventListener("click", () => els.fileInput.click());
