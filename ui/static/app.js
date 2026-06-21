@@ -140,9 +140,21 @@ async function fetchJson(url, options = {}, timeoutMs = 30000) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
-    const data = await res.json();
+    const text = await res.text();
+    let data = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Server returned invalid JSON."
+            : text.slice(0, 240) || `Request failed (${res.status})`,
+        );
+      }
+    }
     if (!res.ok) {
-      throw new Error(data.detail || `Request failed (${res.status})`);
+      throw new Error(data.detail || text.slice(0, 240) || `Request failed (${res.status})`);
     }
     return data;
   } catch (err) {

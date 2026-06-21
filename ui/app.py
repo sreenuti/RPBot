@@ -75,7 +75,7 @@ def _provider_status() -> dict:
         },
         "gemini_judge": {
             "configured": bool(_env("GEMINI_API_KEY")),
-            "model": _env("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash",
+            "model": _env("GEMINI_MODEL", "gemini-2.0-flash") or "gemini-2.0-flash",
             "key_preview": _mask_secret(_env("GEMINI_API_KEY")),
         },
     }
@@ -231,6 +231,8 @@ async def run_agent(request: RunRequest) -> dict:
         )
     except LLMError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {exc}") from exc
 
     return {
         "outputs": [output.model_dump() for output in outputs],

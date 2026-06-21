@@ -26,6 +26,20 @@ def _env(name: str, default: str | None = None) -> str | None:
         return None
     return raw.strip().strip('"').strip("'")
 
+
+def _resolve_gemini_model(name: str) -> str:
+    """Map retired Gemini model ids to a current default."""
+    retired = {
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash-8b",
+        "gemini-1.5-pro",
+        "gemini-1.5-pro-latest",
+    }
+    if name in retired:
+        return "gemini-2.0-flash"
+    return name
+
 CONSENT_FIELD_MAP = {
     "sms": "sms_opt_in",
     "email": "email_opt_in",
@@ -276,7 +290,9 @@ class LLMClient:
         else:
             self.provider = os.getenv("LLM_PROVIDER", "openai").lower()
         self.openai_model = _env("OPENAI_MODEL", "gpt-4o-mini") or "gpt-4o-mini"
-        self.gemini_model = _env("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash"
+        self.gemini_model = _resolve_gemini_model(
+            _env("GEMINI_MODEL", "gemini-2.0-flash") or "gemini-2.0-flash"
+        )
         self.local_model = _env("LOCAL_MODEL", "realpage-message-agent") or "realpage-message-agent"
         self.local_base_url = _env("LOCAL_BASE_URL") or _env("OPENAI_BASE_URL")
         self.local_api_key = _env("LOCAL_API_KEY", "local") or "local"
@@ -516,8 +532,11 @@ class LLMClient:
 
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(self.gemini_model)
-        response = model.generate_content(
-            prompt,
-            generation_config={"temperature": 0, "response_mime_type": "application/json"},
-        )
+        try:
+            response = model.generate_content(
+                prompt,
+                generation_config={"temperature": 0, "response_mime_type": "application/json"},
+            )
+        except Exception as exc:
+            raise LLMError(f"Gemini request failed ({self.gemini_model}): {exc}") from exc
         return response.text or "{}"
