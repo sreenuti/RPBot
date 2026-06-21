@@ -22,6 +22,12 @@ def test_local_provider_uses_model_name(local_env):
     assert client.model_name == "realpage-message-agent-v1"
 
 
+def test_provider_override(local_env):
+    client = LLMClient(mock=False, provider="openai")
+    assert client.provider == "openai"
+    assert client.model_name == "gpt-4o-mini"
+
+
 def test_local_provider_requires_base_url(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "local")
     monkeypatch.delenv("LOCAL_BASE_URL", raising=False)

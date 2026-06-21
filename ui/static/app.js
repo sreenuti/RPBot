@@ -20,6 +20,8 @@ const PHASE_ICONS = {
 
 const els = {
   mockToggle: document.getElementById("mockToggle"),
+  useOpenaiToggle: document.getElementById("useOpenaiToggle"),
+  providerToggleWrap: document.getElementById("providerToggleWrap"),
   loadSampleBtn: document.getElementById("loadSampleBtn"),
   runBtn: document.getElementById("runBtn"),
   uploadZone: document.getElementById("uploadZone"),
@@ -63,6 +65,16 @@ function setLoading(show, subtext) {
 
 const BATCH_SIZE_MOCK = 10;
 const BATCH_SIZE_LIVE = 3;
+
+function syncProviderToggleState() {
+  const mock = els.mockToggle.checked;
+  els.useOpenaiToggle.disabled = mock;
+  els.providerToggleWrap.classList.toggle("toggle-disabled", mock);
+}
+
+function liveProviderLabel() {
+  return els.useOpenaiToggle.checked ? "OpenAI" : "HF fine-tuned";
+}
 
 function setPipelineStatus(text, mode = "idle") {
   els.pipelineStatus.textContent = text;
@@ -422,7 +434,10 @@ async function runAgent() {
   const total = state.records.length;
 
   if (!mock && total > batchSize) {
-    toast(`Live LLM: processing ${total} records in batches of ${batchSize} (may take several minutes).`, "success");
+    toast(
+      `Live ${liveProviderLabel()}: processing ${total} records in batches of ${batchSize} (may take several minutes).`,
+      "success",
+    );
   }
 
   setLoading(true, `Running agent (0/${total})…`);
@@ -443,7 +458,11 @@ async function runAgent() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ records: batch, mock }),
+          body: JSON.stringify({
+            records: batch,
+            mock,
+            use_openai: !mock && els.useOpenaiToggle.checked,
+          }),
         },
         timeoutMs,
       );
@@ -479,6 +498,7 @@ async function runAgent() {
 
 els.loadSampleBtn.addEventListener("click", () => loadSample({ blocking: true }));
 els.runBtn.addEventListener("click", runAgent);
+els.mockToggle.addEventListener("change", syncProviderToggleState);
 
 els.uploadZone.addEventListener("click", () => els.fileInput.click());
 els.fileInput.addEventListener("change", (e) => {
@@ -497,3 +517,4 @@ els.uploadZone.addEventListener("drop", (e) => {
 });
 
 loadSample({ blocking: false });
+syncProviderToggleState();

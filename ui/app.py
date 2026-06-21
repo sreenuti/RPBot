@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -42,6 +43,27 @@ app.add_middleware(
 class RunRequest(BaseModel):
     records: list[dict]
     mock: bool = True
+    use_openai: bool = False
+
+
+def _llm_for_request(*, mock: bool, use_openai: bool) -> LLMClient:
+    """Build LLM client from UI flags: mock, OpenAI, or HF (local) endpoint."""
+    if mock:
+        return LLMClient(mock=True)
+    provider = "openai" if use_openai else "local"
+    if provider == "local" and not (
+        os.getenv("LOCAL_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="HF endpoint is not configured. Set LOCAL_BASE_URL on the server.",
+        )
+    if provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+        raise HTTPException(
+            status_code=400,
+            detail="OpenAI is not configured. Set OPENAI_API_KEY on the server.",
+        )
+    return LLMClient(mock=False, provider=provider)
 
 
 def _parse_jsonl_bytes(content: bytes, filename: str) -> list[dict]:
@@ -118,7 +140,7 @@ async def run_agent(request: RunRequest) -> dict:
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    llm = LLMClient(mock=request.mock)
+    llm = _llm_for_request(mock=request.mock, use_openai=request.use_openai)
     try:
         outputs, trace = run_batch(records, llm, capture_trace=True)
     except LLMError as exc:

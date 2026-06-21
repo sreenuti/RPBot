@@ -261,9 +261,12 @@ def _mock_autonomous_decision(record: InputRecord) -> dict[str, Any]:
 class LLMClient:
     """Generate full autonomous agent decisions via LLM or mock simulation."""
 
-    def __init__(self, mock: bool = False) -> None:
+    def __init__(self, mock: bool = False, provider: str | None = None) -> None:
         self.mock = mock
-        self.provider = os.getenv("LLM_PROVIDER", "openai").lower()
+        if provider is not None:
+            self.provider = provider.lower()
+        else:
+            self.provider = os.getenv("LLM_PROVIDER", "openai").lower()
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
         self.local_model = os.getenv("LOCAL_MODEL", "realpage-message-agent")

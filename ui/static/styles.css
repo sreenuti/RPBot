@@ -149,6 +149,11 @@ body {
   color: var(--muted);
 }
 
+.toggle-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .btn {
   border: none;
   border-radius: 10px;

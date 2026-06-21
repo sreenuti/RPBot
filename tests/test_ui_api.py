@@ -39,6 +39,15 @@ def test_run_mock_agent():
     assert data["trace"]["summary"]["total_records"] == 2
 
 
+def test_run_accepts_use_openai_flag_with_mock():
+    sample = client.get("/api/sample").json()
+    response = client.post(
+        "/api/run",
+        json={"records": sample["records"], "mock": True, "use_openai": True},
+    )
+    assert response.status_code == 200
+
+
 def test_run_rejects_empty_records():
     response = client.post("/api/run", json={"records": [], "mock": True})
     assert response.status_code == 400
