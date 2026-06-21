@@ -18,6 +18,14 @@ load_dotenv()
 
 _openai_clients: dict[tuple[str, str], Any] = {}
 
+
+def _env(name: str, default: str | None = None) -> str | None:
+    """Read env var and strip accidental surrounding quotes from Vercel/UI paste."""
+    raw = os.getenv(name, default)
+    if raw is None:
+        return None
+    return raw.strip().strip('"').strip("'")
+
 CONSENT_FIELD_MAP = {
     "sms": "sms_opt_in",
     "email": "email_opt_in",
@@ -267,11 +275,11 @@ class LLMClient:
             self.provider = provider.lower()
         else:
             self.provider = os.getenv("LLM_PROVIDER", "openai").lower()
-        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-        self.local_model = os.getenv("LOCAL_MODEL", "realpage-message-agent")
-        self.local_base_url = os.getenv("LOCAL_BASE_URL") or os.getenv("OPENAI_BASE_URL")
-        self.local_api_key = os.getenv("LOCAL_API_KEY", "local")
+        self.openai_model = _env("OPENAI_MODEL", "gpt-4o-mini") or "gpt-4o-mini"
+        self.gemini_model = _env("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash"
+        self.local_model = _env("LOCAL_MODEL", "realpage-message-agent") or "realpage-message-agent"
+        self.local_base_url = _env("LOCAL_BASE_URL") or _env("OPENAI_BASE_URL")
+        self.local_api_key = _env("LOCAL_API_KEY", "local") or "local"
 
     @property
     def model_name(self) -> str:
@@ -412,17 +420,21 @@ class LLMClient:
             try:
                 response = client.chat.completions.create(**request_kwargs)
             except Exception as retry_exc:
-                raise LLMError(f"LLM request failed: {retry_exc}") from retry_exc
+                host = (base_url or "https://api.openai.com/v1").split("//")[-1].split("/")[0]
+                provider_label = "HF endpoint" if for_local else "OpenAI"
+                raise LLMError(
+                    f"{provider_label} request failed ({host}): {retry_exc}"
+                ) from retry_exc
 
         return response.choices[0].message.content or "{}"
 
     def _resolve_openai_base_url(self) -> str | None:
         """OpenAI API base URL; ignore HF/local endpoint URLs mis-set as OPENAI_BASE_URL."""
-        base_url = os.getenv("OPENAI_BASE_URL")
+        base_url = _env("OPENAI_BASE_URL")
         if not base_url:
             return None
         normalized = base_url.rstrip("/")
-        local_url = (os.getenv("LOCAL_BASE_URL") or "").rstrip("/")
+        local_url = (_env("LOCAL_BASE_URL") or "").rstrip("/")
         if local_url and normalized == local_url:
             return None
         if "endpoints.huggingface.cloud" in normalized:
@@ -430,7 +442,7 @@ class LLMClient:
         return base_url
 
     def _call_openai(self, prompt: str) -> str:
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = _env("OPENAI_API_KEY")
         if not api_key:
             raise LLMError("OPENAI_API_KEY is not set.")
         return self._openai_chat_request(

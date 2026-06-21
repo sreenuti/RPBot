@@ -19,6 +19,34 @@ def test_health():
     assert response.json() == {"status": "ok"}
 
 
+def test_config_reports_providers(monkeypatch):
+    monkeypatch.setenv("LOCAL_BASE_URL", "https://x.aws.endpoints.huggingface.cloud/v1")
+    monkeypatch.setenv("LOCAL_MODEL", "sreenuti/realpage-message-agent-v1")
+    monkeypatch.delenv("LOCAL_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key-12345678")
+    response = client.get("/api/config")
+    assert response.status_code == 200
+    data = response.json()["providers"]
+    assert data["openai"]["configured"] is True
+    assert data["hf"]["needs_hf_token"] is True
+    assert data["hf"]["configured"] is False
+
+
+def test_run_rejects_hf_without_local_api_key(monkeypatch):
+    monkeypatch.setenv(
+        "LOCAL_BASE_URL",
+        "https://x.aws.endpoints.huggingface.cloud/v1",
+    )
+    monkeypatch.delenv("LOCAL_API_KEY", raising=False)
+    sample = client.get("/api/sample").json()
+    response = client.post(
+        "/api/run",
+        json={"records": sample["records"][:1], "mock": False, "use_openai": False},
+    )
+    assert response.status_code == 400
+    assert "LOCAL_API_KEY" in response.json()["detail"]
+
+
 def test_sample_returns_records():
     response = client.get("/api/sample")
     assert response.status_code == 200
