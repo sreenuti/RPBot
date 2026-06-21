@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 import uuid
 from collections import Counter
@@ -74,6 +75,7 @@ def process_record(
     validation_errors: list[str] = []
     output: AgentOutput | None = None
     llm_calls = 0
+    llm_latency_ms = 0
 
     for attempt in range(MAX_VALIDATION_RETRIES + 1):
         attempt_start = time.perf_counter()
@@ -116,6 +118,7 @@ def process_record(
 
         llm_calls += 1
         llm_elapsed = int((time.perf_counter() - llm_start) * 1000)
+        llm_latency_ms += llm_elapsed
 
         if capture_trace:
             _step(
@@ -216,7 +219,7 @@ def process_record(
         raise LLMError(f"No output produced for {record.task_id}")
 
     total_latency_ms = int((time.perf_counter() - run_start) * 1000)
-    output.quality = evaluate(output, record, latency_ms=total_latency_ms)
+    output.quality = evaluate(output, record, latency_ms=llm_latency_ms or total_latency_ms)
 
     threshold_result = check_thresholds(output.quality, record)
     if capture_trace:
@@ -322,6 +325,9 @@ def run_batch(
     run_start = time.perf_counter()
     outputs: list[AgentOutput] = []
     record_traces: list[RecordTrace] = []
+
+    if not llm.mock and os.getenv("LLM_WARMUP", "true").lower() in ("1", "true", "yes"):
+        llm.warmup()
 
     for record in records:
         output, trace = process_record(

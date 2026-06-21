@@ -322,12 +322,44 @@ class LLMClient:
             _openai_clients[cache_key] = OpenAI(**client_kwargs)
         return _openai_clients[cache_key]
 
-    def _resolve_max_tokens(self, *, for_local: bool) -> int | None:
+    def warmup(self) -> None:
+        """Prime the remote inference connection and GPU (not counted in record latency)."""
+        if self.mock or self.provider != "local" or not self.local_base_url:
+            return
+        try:
+            import urllib.request
+
+            url = self.local_base_url.rstrip("/") + "/models"
+            request = urllib.request.Request(
+                url,
+                headers={"Authorization": f"Bearer {self.local_api_key}"},
+            )
+            urllib.request.urlopen(request, timeout=30)
+        except Exception:
+            pass
+        try:
+            self._openai_chat_request(
+                model=self.local_model,
+                prompt='Return JSON: {"ok":true}',
+                api_key=self.local_api_key,
+                base_url=self.local_base_url,
+                json_mode=True,
+                for_local=True,
+                max_tokens_override=8,
+            )
+        except LLMError:
+            pass
+
+    def _resolve_max_tokens(
+        self, *, for_local: bool, override: int | None = None
+    ) -> int | None:
+        if override is not None:
+            return override
         if for_local:
             raw = os.getenv("LOCAL_MAX_TOKENS")
             if raw:
                 return int(raw)
-            return 512
+            return 384
         raw = os.getenv("OPENAI_MAX_TOKENS")
         return int(raw) if raw else None
 
@@ -346,6 +378,7 @@ class LLMClient:
         json_mode: bool = True,
         system_message: str | None = None,
         for_local: bool = False,
+        max_tokens_override: int | None = None,
     ) -> str:
         client = self._get_openai_client(api_key=api_key, base_url=base_url)
         if system_message is None:
@@ -359,7 +392,9 @@ class LLMClient:
                 {"role": "user", "content": prompt},
             ],
         }
-        max_tokens = self._resolve_max_tokens(for_local=for_local)
+        max_tokens = self._resolve_max_tokens(
+            for_local=for_local, override=max_tokens_override
+        )
         if max_tokens:
             request_kwargs["max_tokens"] = max_tokens
         if json_mode:

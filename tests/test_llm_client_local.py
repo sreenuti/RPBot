@@ -53,6 +53,6 @@ def test_local_provider_calls_openai_compatible_endpoint(local_env, monkeypatch)
     mock_client.chat.completions.create.assert_called_once()
     call_kwargs = mock_client.chat.completions.create.call_args.kwargs
     assert call_kwargs["model"] == "realpage-message-agent-v1"
-    assert call_kwargs["max_tokens"] == 512
+    assert call_kwargs["max_tokens"] == 384
     assert call_kwargs["messages"][0]["content"] == "Respond with JSON only."
     assert call_kwargs["response_format"] == {"type": "json_object"}
