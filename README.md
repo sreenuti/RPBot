@@ -80,14 +80,19 @@ Full diagrams and component details: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 ├── requirements.txt
 ├── pytest.ini
 ├── data/sample.jsonl       # Example input records
+├── data/finetune/          # Exported chat JSONL for training
 ├── docs/
 │   ├── ARCHITECTURE.md     # System design & diagrams
 │   ├── API.md              # Demo UI REST API
 │   ├── TESTING.md          # Test guide
 │   ├── CODE_REVIEW.md      # Code review findings
 │   ├── HOSTING.md          # Colab → HF → Vercel production path
+│   ├── FINETUNING.md       # Local GPU + Colab LoRA training
 │   ├── INPUT_OUTPUT_SCHEMA.md
 │   └── PROBLEM_STATEMENT.md
+├── notebooks/              # Colab training notebook
+├── scripts/                # CLI utilities (train, serve, eval, Hub upload)
+├── requirements-finetune.txt
 ├── src/
 │   ├── loader.py           # JSONL ingestion
 │   ├── schemas.py          # Pydantic models
@@ -123,7 +128,7 @@ API reference: **[docs/API.md](docs/API.md)**
 
 The FastAPI app is configured for Vercel via `pyproject.toml` (`entrypoint = "ui.app:app"`) and root `app.py`.
 
-**Production path (fine-tuned model):** Train in Colab → upload to Hugging Face → deploy a **TGI Inference Endpoint** → point Vercel at it. Full guide: **[docs/HOSTING.md](docs/HOSTING.md)**
+**Production path (fine-tuned model):** Train in Colab or locally → upload to Hugging Face → deploy a **TGI Inference Endpoint** → point Vercel at it. Guides: **[docs/HOSTING.md](docs/HOSTING.md)** · **[docs/FINETUNING.md](docs/FINETUNING.md)**
 
 1. Import/connect the [RPBot](https://github.com/sreenuti/RPBot) repo in Vercel
 2. Leave **Root Directory** empty (project root is the repo root)
@@ -212,6 +217,8 @@ Deploy the inference server in the same region as your API for lowest latency.
 
 ### Fine-tuning dataset export
 
+Full guide: **[docs/FINETUNING.md](docs/FINETUNING.md)** (local Windows GPU, Colab, eval, troubleshooting).
+
 Build training JSONL from labeled records (`expected` hold-out labels):
 
 ```bash
@@ -256,7 +263,11 @@ python scripts/eval_lora.py --input data/test_cases.jsonl --output outputs/lora_
 
 Or use vLLM in WSL/Linux if available, then set `LLM_PROVIDER=local`.
 
-5. Evaluate on hold-out JSONL without `expected` fields
+6. Evaluate on hold-out JSONL without `expected` fields (pipeline run only):
+
+```bash
+python run.py --input data/holdout.jsonl --output outputs/holdout.jsonl
+```
 
 ---
 

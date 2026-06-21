@@ -1,0 +1,42 @@
+{
+  "train": {
+    "total": 3000,
+    "should_send_true": 1950,
+    "should_send_false": 1050,
+    "channel_counts": {
+      "email": 780,
+      "sms": 878,
+      "push": 292
+    }
+  },
+  "validation": {
+    "total": 500,
+    "should_send_true": 325,
+    "should_send_false": 175,
+    "channel_counts": {
+      "sms": 146,
+      "push": 49,
+      "email": 130
+    }
+  },
+  "test": {
+    "total": 500,
+    "should_send_true": 325,
+    "should_send_false": 175,
+    "channel_counts": {
+      "sms": 146,
+      "email": 130,
+      "push": 49
+    }
+  },
+  "edge_cases": {
+    "total": 300,
+    "should_send_true": 105,
+    "should_send_false": 195,
+    "channel_counts": {
+      "push": 16,
+      "sms": 47,
+      "email": 42
+    }
+  }
+}

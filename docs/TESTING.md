@@ -28,6 +28,7 @@ tests/
 ├── test_validator.py        # Consent, safety, schema rules
 ├── test_evaluator.py        # Personalization scoring and thresholds
 ├── test_prompt_builder.py   # Prompt construction and hold-out safety
+├── test_finetune_export.py  # Training JSONL export format
 ├── test_ui_api.py           # FastAPI endpoint integration
 └── test_mock_run.py         # End-to-end CLI and subprocess runs
 ```
@@ -43,6 +44,7 @@ tests/
 | `test_validator.py` | Email subject rules, SMS null subject, opt-out, discrimination blocklist, consent |
 | `test_evaluator.py` | Personalization weights, threshold pass/fail, suppressed sends score 0 |
 | `test_prompt_builder.py` | `expected` excluded from prompts, retry prompt includes errors |
+| `test_finetune_export.py` | Training target JSON, OpenAI chat export, JSONL row counts |
 
 ### Integration Tests
 
@@ -71,6 +73,32 @@ python run.py --input data/sample.jsonl --output outputs/outputs.jsonl --mock --
 ```
 
 Expected: 2 records processed, SMS + email channels, valid JSONL output.
+
+## Fine-tuned model evaluation
+
+Requires a running local server or HF Inference Endpoint (`LLM_PROVIDER=local` in `.env`). See **[FINETUNING.md](FINETUNING.md)**.
+
+```bash
+# Terminal 1
+python scripts/serve_local_model.py --model-dir models/realpage-message-agent-v1
+
+# Terminal 2
+python scripts/eval_lora.py --input data/test_cases.jsonl --output outputs/lora_eval.jsonl
+```
+
+Review `outputs/lora_eval.summary.json` for per-case pass/fail vs gold `expected` labels.
+
+Mock pipeline check (no GPU):
+
+```bash
+python scripts/eval_lora.py --mock
+```
+
+Unit tests for export (no GPU):
+
+```bash
+pytest tests/test_finetune_export.py -v
+```
 
 ## What Tests Do NOT Assert
 

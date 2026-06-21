@@ -257,3 +257,6 @@ Scale endpoint **min replicas to 0** when not demoing to avoid idle GPU charges.
 | `scripts/test_remote_model.py` | Single-record endpoint smoke test |
 | `scripts/eval_lora.py` | Full labeled eval |
 | `scripts/serve_local_model.py` | Local OpenAI-compatible server (dev only) |
+| `scripts/train_lora.py` | Local GPU LoRA training |
+
+See also **[FINETUNING.md](FINETUNING.md)** for the full local Windows workflow.
