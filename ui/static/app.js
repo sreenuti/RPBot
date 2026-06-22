@@ -49,6 +49,8 @@ const els = {
   metricPersonalization: document.getElementById("metricPersonalization"),
   metricLatency: document.getElementById("metricLatency"),
   metricThreshold: document.getElementById("metricThreshold"),
+  metricFailed: document.getElementById("metricFailed"),
+  failedMetricCard: document.getElementById("failedMetricCard"),
 };
 
 function toast(message, type = "success") {
@@ -179,9 +181,10 @@ function setRecords(records, filename) {
 }
 
 function resetMetrics() {
-  ["metricRecords", "metricSent", "metricSuppressed", "metricPersonalization", "metricLatency", "metricThreshold"].forEach((id) => {
+  ["metricRecords", "metricSent", "metricSuppressed", "metricPersonalization", "metricLatency", "metricThreshold", "metricFailed"].forEach((id) => {
     document.getElementById(id).textContent = "—";
   });
+  els.failedMetricCard.hidden = true;
 }
 
 function resetPipeline() {
@@ -196,11 +199,24 @@ function resetPreview() {
   els.previewContent.hidden = true;
 }
 
+function getRecordRunStatus(index) {
+  if (!state.runResult?.trace) return null;
+  const { output, recordTrace } = getRecordResult(index);
+  if (recordTrace?.error) return "failed";
+  if (output) return "success";
+  return null;
+}
+
 function renderRecordList() {
   els.recordList.innerHTML = "";
   state.records.forEach((record, index) => {
     const li = document.createElement("li");
-    li.className = `record-item${index === state.selectedIndex ? " active" : ""}`;
+    const runStatus = getRecordRunStatus(index);
+    const classes = ["record-item"];
+    if (index === state.selectedIndex) classes.push("active");
+    if (runStatus === "failed") classes.push("failed");
+    if (runStatus === "success") classes.push("success");
+    li.className = classes.join(" ");
     li.innerHTML = `
       <div class="task-id">${escapeHtml(record.task_id)}</div>
       <div class="meta">${escapeHtml(record.persona || "—")} · ${escapeHtml(record.lifecycle_stage || "—")}</div>
@@ -325,10 +341,21 @@ function renderPreview() {
   const { output, recordTrace } = getRecordResult(state.selectedIndex);
   const input = state.records[state.selectedIndex];
 
-  if (!output) return;
-
   els.previewEmpty.hidden = true;
   els.previewContent.hidden = false;
+
+  if (recordTrace?.error && !output) {
+    els.decisionBanner.className = "decision-banner error";
+    els.decisionBanner.textContent = `✕ Processing failed · ${input.task_id}`;
+    els.messagePreview.innerHTML = `<p class="input-preview-hint" style="color:var(--red);">${escapeHtml(recordTrace.error)}</p>`;
+    els.reasoningText.textContent = "This record was skipped so the batch could continue. Fix the input or model output and re-run.";
+    els.qualityGrid.innerHTML = "";
+    els.outputJson.textContent = "(not generated — see error above)";
+    els.inputJson.textContent = JSON.stringify(input, null, 2);
+    return;
+  }
+
+  if (!output) return;
 
   const send = output.should_send;
   els.decisionBanner.className = `decision-banner ${send ? "send" : "suppress"}`;
@@ -390,6 +417,13 @@ function renderSummary() {
   els.metricPersonalization.textContent = summary.average_personalization_score.toFixed(2);
   els.metricLatency.textContent = `${Math.round(summary.average_latency_ms)} ms`;
   els.metricThreshold.textContent = `${Math.round(summary.threshold_pass_rate * 100)}%`;
+  if (summary.failed > 0) {
+    els.metricFailed.textContent = summary.failed;
+    els.failedMetricCard.hidden = false;
+  } else {
+    els.metricFailed.textContent = "0";
+    els.failedMetricCard.hidden = true;
+  }
 }
 
 async function loadSample({ blocking = false } = {}) {
@@ -437,8 +471,10 @@ async function uploadFile(file) {
   }
 }
 
-function computeSummary(outputs) {
-  const total = outputs.length;
+function computeSummary(outputs, traces = []) {
+  const totalFromTraces = traces.reduce((sum, trace) => sum + (trace?.summary?.total_records || 0), 0);
+  const failed = traces.reduce((sum, trace) => sum + (trace?.summary?.failed || 0), 0);
+  const total = totalFromTraces || outputs.length + failed;
   const sent = outputs.filter((o) => o.should_send).length;
   const channels = {};
   outputs.forEach((o) => {
@@ -456,18 +492,20 @@ function computeSummary(outputs) {
   return {
     total_records: total,
     sent,
-    suppressed: total - sent,
+    suppressed: outputs.length - sent,
     channel_distribution: channels,
     average_personalization_score: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0,
     max_safety_violations: maxSafety,
     average_latency_ms: latencies.length ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0,
-    threshold_pass_rate: total ? thresholdPassed / total : 0,
+    threshold_pass_rate: outputs.length ? thresholdPassed / outputs.length : 0,
+    failed,
   };
 }
 
 function mergeBatchResults(batchResults) {
   const outputs = batchResults.flatMap((r) => r.outputs || []);
   const records = batchResults.flatMap((r) => r.trace?.records || []);
+  const traces = batchResults.map((r) => r.trace).filter(Boolean);
   const firstTrace = batchResults.find((r) => r.trace)?.trace;
   const totalLatency = batchResults.reduce((sum, r) => sum + (r.trace?.total_latency_ms || 0), 0);
 
@@ -477,7 +515,7 @@ function mergeBatchResults(batchResults) {
       ? {
           ...firstTrace,
           total_latency_ms: totalLatency,
-          summary: computeSummary(outputs),
+          summary: computeSummary(outputs, traces),
           records,
         }
       : null,
@@ -526,23 +564,36 @@ async function runAgent() {
     }
 
     state.runResult = mergeBatchResults(batchResults);
-    setPipelineStatus("Complete", "complete");
+    const summary = state.runResult.trace?.summary;
+    const failed = summary?.failed || 0;
+    if (failed > 0) {
+      setPipelineStatus("Complete (with errors)", "error");
+    } else {
+      setPipelineStatus("Complete", "complete");
+    }
 
     renderSummary();
+    renderRecordList();
     renderPipeline();
     renderPreview();
     syncExportButtons();
-    toast(
-      `Processed ${state.runResult.outputs.length} record(s) in ${state.runResult.trace?.total_latency_ms ?? "?"} ms`,
-    );
+    const succeeded = state.runResult.outputs.length;
+    if (failed > 0) {
+      toast(`Processed ${succeeded}/${total} record(s); ${failed} failed and were skipped`, "error");
+    } else {
+      toast(
+        `Processed ${succeeded} record(s) in ${state.runResult.trace?.total_latency_ms ?? "?"} ms`,
+      );
+    }
   } catch (err) {
     if (batchResults.length) {
       state.runResult = mergeBatchResults(batchResults);
       renderSummary();
+      renderRecordList();
       renderPipeline();
       renderPreview();
       syncExportButtons();
-      toast(`Partial results: ${state.runResult.outputs.length}/${total} records before error: ${err.message}`, "error");
+      toast(`Run interrupted after ${state.runResult.outputs.length}/${total} records: ${err.message}`, "error");
       setPipelineStatus("Partial", "error");
     } else {
       setPipelineStatus("Error", "error");

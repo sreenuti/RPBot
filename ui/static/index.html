@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=10" />
+  <link rel="stylesheet" href="/static/styles.css?v=11" />
 </head>
 <body>
   <div class="bg-gradient"></div>
@@ -83,6 +83,13 @@
       </div>
       <span class="metric-value" id="metricThreshold">—</span>
     </div>
+    <div class="metric-card accent-red" id="failedMetricCard" hidden>
+      <div class="metric-label-row">
+        <span class="metric-label">Failed</span>
+        <button type="button" class="metric-info" aria-label="About Failed" data-tooltip="Records that could not be processed due to LLM, parse, or validation errors. Skipped so the rest of the batch can continue.">i</button>
+      </div>
+      <span class="metric-value" id="metricFailed">—</span>
+    </div>
   </section>
 
   <main class="layout">
@@ -157,6 +164,6 @@
     <p class="loading-sub" id="loadingSub">Building prompts and invoking LLM</p>
   </div>
 
-  <script src="/static/app.js?v=10"></script>
+  <script src="/static/app.js?v=11"></script>
 </body>
 </html>

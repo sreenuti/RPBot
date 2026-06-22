@@ -51,6 +51,7 @@ class RunSummary(BaseModel):
     max_safety_violations: int
     average_latency_ms: float
     threshold_pass_rate: float
+    failed: int = 0
 
 
 class RunTrace(BaseModel):

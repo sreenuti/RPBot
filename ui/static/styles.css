@@ -312,6 +312,7 @@ body {
 .accent-blue .metric-value { color: var(--blue); }
 .accent-purple .metric-value { color: var(--purple); }
 .accent-teal .metric-value { color: var(--teal); }
+.accent-red .metric-value { color: var(--red); }
 
 .layout {
   display: grid;
@@ -435,6 +436,30 @@ body {
 .record-item.active {
   background: rgba(99, 102, 241, 0.12);
   border-color: rgba(99, 102, 241, 0.35);
+}
+
+.record-item.failed {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.record-item.failed.active {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+.record-item.failed .task-id::after {
+  content: " · error";
+  color: var(--red);
+  font-weight: 500;
+  font-size: 0.75rem;
+}
+
+.record-item.success .task-id::after {
+  content: " · ok";
+  color: var(--green);
+  font-weight: 500;
+  font-size: 0.75rem;
 }
 
 .record-item .task-id {
@@ -624,6 +649,8 @@ body {
   text-align: center;
   padding: 1rem;
 }
+
+.decision-banner {
   padding: 0.75rem 1rem;
   border-radius: 10px;
   margin-bottom: 1rem;
@@ -641,6 +668,12 @@ body {
   background: rgba(245, 158, 11, 0.12);
   border: 1px solid rgba(245, 158, 11, 0.25);
   color: var(--amber);
+}
+
+.decision-banner.error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--red);
 }
 
 .message-preview {

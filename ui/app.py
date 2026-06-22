@@ -195,8 +195,6 @@ async def run_agent(request: RunRequest) -> dict:
         )
     except LLMError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {exc}") from exc
 
     return {
         "outputs": [output.model_dump() for output in outputs],

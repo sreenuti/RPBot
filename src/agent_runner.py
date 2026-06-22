@@ -43,6 +43,25 @@ def _step(
     return step
 
 
+def _error_record_trace(record: InputRecord, exc: Exception) -> RecordTrace:
+    """Build a trace for a record that failed before producing output."""
+    message = str(exc)
+    return RecordTrace(
+        task_id=record.task_id,
+        input_record=record.model_dump(),
+        steps=[
+            TraceStep(
+                step_id="error-1",
+                phase="error",
+                title="Record processing failed",
+                status="error",
+                message=message,
+            )
+        ],
+        error=message,
+    )
+
+
 def process_record(
     record: InputRecord,
     llm: LLMClient,
@@ -289,8 +308,14 @@ def process_record(
     return output, record_trace
 
 
-def _build_summary(outputs: list[AgentOutput], records: list[InputRecord]) -> RunSummary:
-    total = len(outputs)
+def _build_summary(
+    outputs: list[AgentOutput],
+    records: list[InputRecord],
+    *,
+    total_input: int,
+    failed: int,
+) -> RunSummary:
+    total = total_input
     sent = sum(1 for o in outputs if o.should_send)
     channels = Counter(
         (o.next_message.channel or "none") if o.should_send else "suppressed"
@@ -303,16 +328,18 @@ def _build_summary(outputs: list[AgentOutput], records: list[InputRecord]) -> Ru
     for output, record in zip(outputs, records):
         if check_thresholds(output.quality, record).passed:
             threshold_passed += 1
+    succeeded = len(outputs)
 
     return RunSummary(
         total_records=total,
         sent=sent,
-        suppressed=total - sent,
+        suppressed=succeeded - sent,
         channel_distribution=dict(channels),
         average_personalization_score=round(sum(scores) / len(scores), 2) if scores else 0.0,
         max_safety_violations=max_safety,
         average_latency_ms=round(sum(latencies) / len(latencies), 1) if latencies else 0.0,
-        threshold_pass_rate=round(threshold_passed / total, 2) if total else 0.0,
+        threshold_pass_rate=round(threshold_passed / succeeded, 2) if succeeded else 0.0,
+        failed=failed,
     )
 
 
@@ -326,7 +353,9 @@ def run_batch(
     """Process multiple records and optionally capture a full run trace."""
     run_start = time.perf_counter()
     outputs: list[AgentOutput] = []
+    success_records: list[InputRecord] = []
     record_traces: list[RecordTrace] = []
+    failed = 0
 
     if (
         not llm.mock
@@ -335,13 +364,23 @@ def run_batch(
         llm.warmup()
 
     for record in records:
-        output, trace = process_record(
-            record,
-            llm,
-            verbose=verbose,
-            capture_trace=capture_trace,
-        )
+        try:
+            output, trace = process_record(
+                record,
+                llm,
+                verbose=verbose,
+                capture_trace=capture_trace,
+            )
+        except Exception as exc:
+            failed += 1
+            if verbose:
+                print(f"[error] {record.task_id}: {exc}")
+            if capture_trace:
+                record_traces.append(_error_record_trace(record, exc))
+            continue
+
         outputs.append(output)
+        success_records.append(record)
         if trace:
             record_traces.append(trace)
 
@@ -355,7 +394,12 @@ def run_batch(
             model=llm.model_name,
             started_at=datetime.now(timezone.utc).isoformat(),
             total_latency_ms=total_ms,
-            summary=_build_summary(outputs, records),
+            summary=_build_summary(
+                outputs,
+                success_records,
+                total_input=len(records),
+                failed=failed,
+            ),
             records=record_traces,
         )
 
