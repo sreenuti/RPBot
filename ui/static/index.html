@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=12" />
+  <link rel="stylesheet" href="/static/styles.css?v=13" />
 </head>
 <body>
   <div class="bg-gradient"></div>
@@ -94,16 +94,19 @@
 
   <main class="layout">
     <aside class="panel panel-left">
-      <div class="panel-header">
-        <h2>Input records</h2>
+      <div class="panel-header panel-header-input">
+        <div>
+          <h2>Input records</h2>
+          <p class="input-filename" id="inputFilename" hidden></p>
+        </div>
         <span class="badge" id="inputCount">0 loaded</span>
       </div>
 
       <div class="upload-zone" id="uploadZone">
         <input type="file" id="fileInput" accept=".jsonl" hidden />
         <div class="upload-icon">⬆</div>
-        <p><strong>Drop JSONL here</strong> or click to browse</p>
-        <p class="upload-hint">One JSON object per line · consent · profile · constraints</p>
+        <p id="uploadLabel"><strong>Drop JSONL here</strong> or click to browse</p>
+        <p class="upload-hint" id="uploadHint">One JSON object per line · consent · profile · constraints</p>
       </div>
 
       <ul class="record-list" id="recordList"></ul>
@@ -164,6 +167,6 @@
     <p class="loading-sub" id="loadingSub">Building prompts and invoking LLM</p>
   </div>
 
-  <script src="/static/app.js?v=11"></script>
+  <script src="/static/app.js?v=13"></script>
 </body>
 </html>

@@ -29,6 +29,9 @@ const els = {
   fileInput: document.getElementById("fileInput"),
   recordList: document.getElementById("recordList"),
   inputCount: document.getElementById("inputCount"),
+  inputFilename: document.getElementById("inputFilename"),
+  uploadLabel: document.getElementById("uploadLabel"),
+  uploadHint: document.getElementById("uploadHint"),
   timeline: document.getElementById("timeline"),
   pipelineEmpty: document.getElementById("pipelineEmpty"),
   pipelineStatus: document.getElementById("pipelineStatus"),
@@ -169,7 +172,7 @@ function setRecords(records, filename) {
   state.selectedIndex = 0;
   state.runResult = null;
   els.runBtn.disabled = records.length === 0;
-  els.inputCount.textContent = `${records.length} loaded`;
+  updateInputSourceUI();
   renderRecordList();
   resetPipeline();
   resetPreview();
@@ -177,6 +180,24 @@ function setRecords(records, filename) {
   syncExportButtons();
   if (records.length) {
     renderInputPreview();
+  }
+}
+
+function updateInputSourceUI() {
+  const count = state.records.length;
+  els.inputCount.textContent = count ? `${count} loaded` : "0 loaded";
+
+  if (state.filename && count) {
+    els.inputFilename.textContent = state.filename;
+    els.inputFilename.title = state.filename;
+    els.inputFilename.hidden = false;
+    els.uploadLabel.innerHTML = `<strong>${escapeHtml(state.filename)}</strong>`;
+    els.uploadHint.textContent = `${count} record${count === 1 ? "" : "s"} · click or drop to replace`;
+  } else {
+    els.inputFilename.hidden = true;
+    els.inputFilename.textContent = "";
+    els.uploadLabel.innerHTML = "<strong>Drop JSONL here</strong> or click to browse";
+    els.uploadHint.textContent = "One JSON object per line · consent · profile · constraints";
   }
 }
 
