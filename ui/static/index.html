@@ -1,4 +1,12 @@
 <!DOCTYPE html>
+<!--
+  RealPage Message Agent — Live Demo (static shell).
+
+  Single-page layout: header with provider toggle and run controls, three-column
+  main area (record list | pipeline timeline | output preview), and loading/toast
+  overlays. Behavior is implemented in app.js; styling in styles.css.
+  Served by ui/app.py at GET / with static assets under /static/.
+-->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -7,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=13" />
+  <link rel="stylesheet" href="/static/styles.css?v=14" />
 </head>
 <body>
   <div class="bg-gradient"></div>
@@ -167,6 +175,6 @@
     <p class="loading-sub" id="loadingSub">Building prompts and invoking LLM</p>
   </div>
 
-  <script src="/static/app.js?v=13"></script>
+  <script src="/static/app.js?v=14"></script>
 </body>
 </html>

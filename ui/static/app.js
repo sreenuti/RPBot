@@ -1,3 +1,15 @@
+/**
+ * RealPage Message Agent — demo UI client-side logic.
+ *
+ * Drives the interactive pipeline viewer: load sample or uploaded JSONL records,
+ * run the agent via POST /api/run (batched for live progress), and render:
+ *   - record list and input/output JSON panels
+ *   - per-phase execution timeline (ingest → prompt → llm → parse → …)
+ *   - decision banner, message preview, quality metrics, run summary cards
+ *
+ * State is held in a single `state` object (records, selectedIndex, runResult).
+ * Provider selection toggles between HF local endpoint and OpenAI on the server.
+ */
 const state = {
   records: [],
   filename: null,
@@ -389,11 +401,13 @@ function renderPreview() {
   const q = output.quality || {};
   const thresholdStep = recordTrace?.steps?.find((s) => s.phase === "threshold");
   const thresholdPassed = thresholdStep?.data?.passed ?? true;
+  const minPersonalization = input?.thresholds?.personalization_score_min ?? 0.8;
+  const maxSafety = input?.thresholds?.safety_violations_max ?? 0;
 
   els.qualityGrid.innerHTML = `
     <div class="quality-item"><span class="label">Latency</span><div class="value">${q.latency_ms ?? "—"} ms</div></div>
-    <div class="quality-item ${q.personalization_score >= 0.8 ? "pass" : "fail"}"><span class="label">Personalization</span><div class="value">${q.personalization_score ?? "—"}</div></div>
-    <div class="quality-item ${q.safety_violations === 0 ? "pass" : "fail"}"><span class="label">Safety violations</span><div class="value">${q.safety_violations ?? 0}</div></div>
+    <div class="quality-item ${q.personalization_score >= minPersonalization ? "pass" : "fail"}"><span class="label">Personalization</span><div class="value">${q.personalization_score ?? "—"}</div></div>
+    <div class="quality-item ${(q.safety_violations ?? 0) <= maxSafety ? "pass" : "fail"}"><span class="label">Safety violations</span><div class="value">${q.safety_violations ?? 0}</div></div>
     <div class="quality-item ${thresholdPassed ? "pass" : "fail"}"><span class="label">Thresholds</span><div class="value">${thresholdPassed ? "PASS" : "FAIL"}</div></div>
   `;
 
@@ -491,7 +505,33 @@ async function uploadFile(file) {
   }
 }
 
-function computeSummary(outputs, traces = []) {
+function checkThresholds(quality, thresholds = {}) {
+  // Mirror src/evaluator.py check_thresholds for UI summary consistency.
+  const failures = [];
+  const q = quality || {};
+  const t = thresholds || {};
+  const ps = q.personalization_score ?? 0;
+  const sv = q.safety_violations ?? 0;
+  const lat = q.latency_ms;
+
+  if (t.personalization_score_min != null && ps < t.personalization_score_min) {
+    failures.push(`personalization_score ${ps} < ${t.personalization_score_min}`);
+  }
+  if (t.safety_violations_max != null && sv > t.safety_violations_max) {
+    failures.push(`safety_violations ${sv} > ${t.safety_violations_max}`);
+  }
+  if (t.p95_latency_ms != null && lat != null && lat > t.p95_latency_ms) {
+    failures.push(`latency_ms ${lat} > ${t.p95_latency_ms}`);
+  }
+  return { passed: failures.length === 0, failures };
+}
+
+function thresholdsForOutput(output, records) {
+  const record = records.find((r) => r.task_id === output.task_id);
+  return record?.thresholds || {};
+}
+
+function computeSummary(outputs, traces = [], records = []) {
   const totalFromTraces = traces.reduce((sum, trace) => sum + (trace?.summary?.total_records || 0), 0);
   const failed = traces.reduce((sum, trace) => sum + (trace?.summary?.failed || 0), 0);
   const total = totalFromTraces || outputs.length + failed;
@@ -504,10 +544,9 @@ function computeSummary(outputs, traces = []) {
   const scores = outputs.map((o) => o.quality?.personalization_score ?? 0);
   const latencies = outputs.map((o) => o.quality?.latency_ms ?? 0);
   const maxSafety = Math.max(...outputs.map((o) => o.quality?.safety_violations ?? 0), 0);
-  const thresholdPassed = outputs.filter((o) => {
-    const q = o.quality || {};
-    return (q.safety_violations ?? 0) === 0;
-  }).length;
+  const thresholdPassed = outputs.filter((o) =>
+    checkThresholds(o.quality, thresholdsForOutput(o, records)).passed,
+  ).length;
 
   return {
     total_records: total,
@@ -535,7 +574,7 @@ function mergeBatchResults(batchResults) {
       ? {
           ...firstTrace,
           total_latency_ms: totalLatency,
-          summary: computeSummary(outputs, traces),
+          summary: computeSummary(outputs, traces, state.records),
           records,
         }
       : null,
