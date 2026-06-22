@@ -215,7 +215,6 @@ function renderRecordList() {
     const classes = ["record-item"];
     if (index === state.selectedIndex) classes.push("active");
     if (runStatus === "failed") classes.push("failed");
-    if (runStatus === "success") classes.push("success");
     li.className = classes.join(" ");
     li.innerHTML = `
       <div class="task-id">${escapeHtml(record.task_id)}</div>

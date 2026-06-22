@@ -455,13 +455,6 @@ body {
   font-size: 0.75rem;
 }
 
-.record-item.success .task-id::after {
-  content: " · ok";
-  color: var(--green);
-  font-weight: 500;
-  font-size: 0.75rem;
-}
-
 .record-item .task-id {
   font-weight: 600;
   font-size: 0.85rem;
