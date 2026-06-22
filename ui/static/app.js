@@ -394,7 +394,7 @@ function renderSummary() {
 
 async function loadSample({ blocking = false } = {}) {
   if (blocking) {
-    setLoading(true, "Loading sample dataset…");
+    setLoading(true, "Resetting to sample…");
   } else {
     els.inputCount.textContent = "Loading sample…";
   }
@@ -410,7 +410,7 @@ async function loadSample({ blocking = false } = {}) {
     toast(`Loaded ${data.record_count} sample records`);
   } catch (err) {
     toast(err.message, "error");
-    els.inputCount.textContent = "Load failed — click Load sample";
+    els.inputCount.textContent = "Load failed — click Reset to sample";
   } finally {
     if (blocking) setLoading(false);
   }
