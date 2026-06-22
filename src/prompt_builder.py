@@ -88,17 +88,9 @@ def _full_prompt(record: InputRecord) -> str:
     )
 
 
-def _resolve_style(*, for_local: bool = False) -> str:
-    """Pick prompt style; HF/local fine-tune uses training format by default."""
-    style = prompt_style()
-    if for_local and style == "full":
-        return "training"
-    return style
-
-
-def build_prompt(record: InputRecord, *, for_local: bool = False) -> str:
+def build_prompt(record: InputRecord) -> str:
     """Construct a prompt for a fully autonomous communication decision."""
-    style = _resolve_style(for_local=for_local)
+    style = prompt_style()
     if style == "training":
         return _training_prompt(record)
     if style == "compact":
@@ -106,16 +98,11 @@ def build_prompt(record: InputRecord, *, for_local: bool = False) -> str:
     return _full_prompt(record)
 
 
-def build_retry_prompt(
-    record: InputRecord,
-    validation_errors: list[str],
-    *,
-    for_local: bool = False,
-) -> str:
+def build_retry_prompt(record: InputRecord, validation_errors: list[str]) -> str:
     """Append validation feedback so the LLM can correct its prior response."""
     feedback = "\n".join(f"- {error}" for error in validation_errors)
     return (
-        f"{build_prompt(record, for_local=for_local)}\n\n"
+        f"{build_prompt(record)}\n\n"
         "Your previous response failed validation:\n"
         f"{feedback}\n\n"
         "Fix all issues and respond with valid JSON only."

@@ -90,8 +90,7 @@ def process_record(
             },
         )
 
-    use_local_prompt = not llm.mock and llm.provider == "local"
-    prompt = build_prompt(record, for_local=use_local_prompt)
+    prompt = build_prompt(record)
     validation_errors: list[str] = []
     output: AgentOutput | None = None
     llm_calls = 0
@@ -99,11 +98,7 @@ def process_record(
 
     for attempt in range(MAX_VALIDATION_RETRIES + 1):
         attempt_start = time.perf_counter()
-        current_prompt = (
-            prompt
-            if attempt == 0
-            else build_retry_prompt(record, validation_errors, for_local=use_local_prompt)
-        )
+        current_prompt = prompt if attempt == 0 else build_retry_prompt(record, validation_errors)
 
         if capture_trace:
             phase = "prompt" if attempt == 0 else "retry"

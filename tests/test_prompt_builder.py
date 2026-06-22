@@ -43,16 +43,6 @@ def test_build_training_prompt_is_compact_json(monkeypatch):
     assert "expected" not in parsed
     assert "thresholds" not in parsed
 
-
-def test_build_prompt_for_local_defaults_to_training_format(monkeypatch):
-    monkeypatch.delenv("PROMPT_STYLE", raising=False)
-    record = load_jsonl(DATA / "sample.jsonl")[0]
-    prompt = build_prompt(record, for_local=True)
-    parsed = json.loads(prompt)
-    assert parsed["task_id"] == record.task_id
-    assert "autonomous property management" not in prompt.lower()
-
-
 def test_default_prompt_style_is_full(monkeypatch):
     monkeypatch.delenv("PROMPT_STYLE", raising=False)
     assert prompt_style() == "full"

@@ -154,7 +154,7 @@ You should see parsed JSON with `should_send`, `next_message`, etc.
 | `LOCAL_JSON_MODE` | `true` |
 | `LOCAL_MAX_TOKENS` | `512` |
 | `OPENAI_MAX_TOKENS` | `512` (also the code default when unset — caps verbose OpenAI JSON) |
-| `PROMPT_STYLE` | optional; leave unset — HF/local auto-use **training** prompt format at inference |
+| `PROMPT_STYLE` | optional; leave as `full` (default) for HF inference |
 
 3. **Redeploy** after saving env vars.
 
@@ -168,12 +168,12 @@ The UI **Avg latency** metric is mean `quality.latency_ms` per record — time i
 |--------|---------------------------|-----------------------------|
 | Model size | ~1.5B, task-specific | Larger general model |
 | Output length | Short JSON (trained + `LOCAL_MAX_TOKENS=512`) | Capped at `OPENAI_MAX_TOKENS=512` |
-| Prompt format | Compact training JSON (auto when provider is `local`) | Full schema prompt |
+| Prompt format | Full schema prompt (default) | Full schema prompt |
 | Typical per record | ~1.5–2.5 s (warm GPU) | ~3–4 s |
 
 **Why Qwen is faster:** fewer parameters per token, fine-tuned for terse JSON, dedicated HF GPU, and shorter prompts. OpenAI is more flexible on novel inputs but generates longer reasoning and message text.
 
-**Fair comparison:** set `OPENAI_MAX_TOKENS=512` on Vercel (now the code default). HF/local already uses training-format prompts automatically; OpenAI keeps the full prompt when toggled in the UI.
+**Fair comparison:** set `OPENAI_MAX_TOKENS=512` on Vercel (now the code default). Keep `PROMPT_STYLE=full` (default) for HF inference — the fine-tuned endpoint expects the full schema prompt at runtime, not the compact training JSONL format.
 
 ### Latency tuning
 

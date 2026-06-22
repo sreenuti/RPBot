@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.llm_client import LLMClient, LLMError, _openai_clients
-from src.prompt_builder import TRAINING_SYSTEM_PROMPT
 
 
 @pytest.fixture(autouse=True)
@@ -89,7 +88,7 @@ def test_local_provider_calls_openai_compatible_endpoint(local_env, monkeypatch)
     call_kwargs = mock_client.chat.completions.create.call_args.kwargs
     assert call_kwargs["model"] == "realpage-message-agent-v1"
     assert call_kwargs["max_tokens"] == 512
-    assert call_kwargs["messages"][0]["content"] == TRAINING_SYSTEM_PROMPT
+    assert call_kwargs["messages"][0]["content"] == "Respond with JSON only."
     assert call_kwargs["response_format"] == {"type": "json_object"}
 
 

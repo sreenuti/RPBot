@@ -153,7 +153,7 @@ OPENAI_API_KEY=sk-...
 OPENAI_MAX_TOKENS=512
 ```
 
-When both HF and OpenAI are configured (UI toggle), HF uses compact training prompts automatically; OpenAI uses the full schema prompt with a 512-token output cap for fairer latency.
+When both HF and OpenAI are configured (UI toggle), both use the full schema prompt. OpenAI output is capped at 512 tokens by default.
 
 4. Redeploy
 
