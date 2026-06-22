@@ -153,10 +153,27 @@ You should see parsed JSON with `should_send`, `next_message`, etc.
 | `LOCAL_API_KEY` | `hf_...` (same Hub token with inference access) |
 | `LOCAL_JSON_MODE` | `true` |
 | `LOCAL_MAX_TOKENS` | `512` |
+| `OPENAI_MAX_TOKENS` | `512` (also the code default when unset — caps verbose OpenAI JSON) |
+| `PROMPT_STYLE` | optional; leave unset — HF/local auto-use **training** prompt format at inference |
 
 3. **Redeploy** after saving env vars.
 
-4. Open your Vercel URL → turn **off** Mock mode in the UI → run sample data.
+4. Open your Vercel URL → use the **Use OpenAI** toggle to compare providers → run sample data.
+
+### Qwen (HF) vs OpenAI latency
+
+The UI **Avg latency** metric is mean `quality.latency_ms` per record — time inside the LLM call only.
+
+| Factor | Fine-tuned Qwen 1.5B (HF) | GPT-4o-mini (OpenAI toggle) |
+|--------|---------------------------|-----------------------------|
+| Model size | ~1.5B, task-specific | Larger general model |
+| Output length | Short JSON (trained + `LOCAL_MAX_TOKENS=512`) | Capped at `OPENAI_MAX_TOKENS=512` |
+| Prompt format | Compact training JSON (auto when provider is `local`) | Full schema prompt |
+| Typical per record | ~1.5–2.5 s (warm GPU) | ~3–4 s |
+
+**Why Qwen is faster:** fewer parameters per token, fine-tuned for terse JSON, dedicated HF GPU, and shorter prompts. OpenAI is more flexible on novel inputs but generates longer reasoning and message text.
+
+**Fair comparison:** set `OPENAI_MAX_TOKENS=512` on Vercel (now the code default). HF/local already uses training-format prompts automatically; OpenAI keeps the full prompt when toggled in the UI.
 
 ### Latency tuning
 

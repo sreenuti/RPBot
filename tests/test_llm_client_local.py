@@ -4,7 +4,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.llm_client import LLMClient, LLMError
+from src.llm_client import LLMClient, LLMError, _openai_clients
+from src.prompt_builder import TRAINING_SYSTEM_PROMPT
+
+
+@pytest.fixture(autouse=True)
+def clear_openai_client_cache():
+    _openai_clients.clear()
+    yield
+    _openai_clients.clear()
 
 
 @pytest.fixture
@@ -81,5 +89,24 @@ def test_local_provider_calls_openai_compatible_endpoint(local_env, monkeypatch)
     call_kwargs = mock_client.chat.completions.create.call_args.kwargs
     assert call_kwargs["model"] == "realpage-message-agent-v1"
     assert call_kwargs["max_tokens"] == 512
-    assert call_kwargs["messages"][0]["content"] == "Respond with JSON only."
+    assert call_kwargs["messages"][0]["content"] == TRAINING_SYSTEM_PROMPT
     assert call_kwargs["response_format"] == {"type": "json_object"}
+
+
+def test_openai_defaults_max_tokens_to_512(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.delenv("OPENAI_MAX_TOKENS", raising=False)
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock(message=MagicMock(content='{"should_send": false}'))]
+    mock_client.chat.completions.create.return_value = mock_response
+
+    openai_module = types.ModuleType("openai")
+    openai_module.OpenAI = MagicMock(return_value=mock_client)
+    monkeypatch.setitem(sys.modules, "openai", openai_module)
+
+    client = LLMClient(mock=False, provider="openai")
+    client.generate('{"task":"test"}')
+
+    call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+    assert call_kwargs["max_tokens"] == 512

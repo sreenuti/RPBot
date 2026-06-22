@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
-from src.prompt_builder import TRAINING_SYSTEM_PROMPT, prompt_style
+from src.prompt_builder import TRAINING_SYSTEM_PROMPT
 from src.schemas import InputRecord
 
 load_dotenv()
@@ -388,10 +388,12 @@ class LLMClient:
                 return int(raw)
             return 512
         raw = os.getenv("OPENAI_MAX_TOKENS")
-        return int(raw) if raw else None
+        if raw:
+            return int(raw)
+        return 512
 
     def _system_message(self, *, for_local: bool) -> str:
-        if for_local and prompt_style() == "training":
+        if for_local:
             return TRAINING_SYSTEM_PROMPT
         return "Respond with JSON only."
 
